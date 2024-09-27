@@ -1054,6 +1054,7 @@ def train():
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
     print("Data module built.")
 
+    # Push the model to HuggingFace Hub
     repo_name = training_args.output_dir.split('/')[-1]
     training_args.hub_model_id = repo_name
     training_args.push_to_hub = True

@@ -132,6 +132,26 @@ class LengthGroupedSampler(Sampler):
 
 
 class MiphaTrainer(Trainer):
+    
+    def training_step(self, model, inputs):
+        print("Trainer received inputs:")
+        print("Keys:", inputs.keys())
+        if 'new_images' in inputs:
+            print("new_images:", inputs['new_images'])
+        else:
+            print("new_images not in inputs")
+        return super().training_step(model, inputs)
+    
+    def compute_loss(self, model, inputs, return_outputs=False):
+        # Print the keys in inputs to verify all expected keys are present
+        print("Compute Loss - Inputs Keys:", inputs.keys())
+        if 'new_images' in inputs:
+            print("Compute Loss - new_images:", inputs['new_images'])
+        else:
+            print("Compute Loss - new_images not found")
+
+        # Call the base class compute_loss
+        return super().compute_loss(model, inputs, return_outputs)
 
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         if self.train_dataset is None or not has_length(self.train_dataset):
@@ -150,7 +170,7 @@ class MiphaTrainer(Trainer):
             return super()._get_train_sampler()
 
     def _save_checkpoint(self, model, trial, metrics=None):
-        super(MiphaTrainer, self)._save_checkpoint(model, trial, metrics, use_reentrant=True)
+        super(MiphaTrainer, self)._save_checkpoint(model, trial, metrics)
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         super(MiphaTrainer, self)._save(output_dir, state_dict)
