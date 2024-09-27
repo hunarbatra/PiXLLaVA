@@ -5,8 +5,8 @@ git lfs install
 mkdir -p ./ckpts
 git clone https://huggingface.co/google/siglip-so400m-patch14-384
 git clone https://huggingface.co/susnato/phi-2
-mv siglip-so400m-patch14-384 ./ckpts/siglip-so400m-patch14-384
-mv phi-2 ./ckpts/phi-2
+mv -f siglip-so400m-patch14-384 ./ckpts/siglip-so400m-patch14-384
+mv -f phi-2 ./ckpts/phi-2
 
 ## vision_encoder
 #vision_encoder=openai/clip-vit-large-patch14-336
