@@ -1,23 +1,17 @@
-# Adopted from https://github.com/lm-sys/FastChat. Below is the original copyright:
-# Adopted from tatsu-lab@stanford_alpaca. Below is the original copyright:
+# Adapted from https://github.com/lm-sys/FastChat. Below is the original copyright:
+# Adapted from tatsu-lab@stanford_alpaca. Below is the original copyright:
 #    Copyright 2023 Rohan Taori, Ishaan Gulrajani, Tianyi Zhang, Yann Dubois, Xuechen Li
-#
-#    Licensed under the Apache License, Version 2.0 (the "License");
-#    you may not use this file except in compliance with the License.
-#    You may obtain a copy of the License at
-#
-#        http://www.apache.org/licenses/LICENSE-2.0
-#
-#    Unless required by applicable law or agreed to in writing, software
-#    distributed under the License is distributed on an "AS IS" BASIS,
-#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#    See the License for the specific language governing permissions and
-#    limitations under the License.
+
 
 import os
+from dotenv import load_dotenv
 
-os.environ["WANDB_API_KEY"] = 'd6e5b41560c076da37ebe634ad8dcf2a6f6f17d3'
-os.environ["WANDB_MODE"] = "offline"
+
+load_dotenv()
+
+os.environ["WANDB_API_KEY"] = os.getenv('WANDB_API_KEY')
+# os.environ["WANDB_MODE"] = "offline"
+HF_TOKEN = os.getenv('HF_TOKEN')
 
 import copy
 from dataclasses import dataclass, field
@@ -27,6 +21,7 @@ import pathlib
 from typing import Dict, Optional, Sequence, List
 import sys
 import torch
+import torch.nn as nn
 
 import transformers
 
@@ -39,9 +34,15 @@ from mipha import conversation as conversation_lib
 from mipha.model import *
 from mipha.mm_utils import tokenizer_image_token
 from transformers import CLIPVisionConfig, SiglipVisionConfig, Dinov2Config, \
-    CLIPImageProcessor, SiglipImageProcessor, BitImageProcessor
+    CLIPImageProcessor, SiglipImageProcessor, BitImageProcessor, \
+    DetrImageProcessor, DetrForObjectDetection, \
+    AutoTokenizer
 
 from PIL import Image
+from huggingface_hub import HfApi, Repository, HfFolder
+
+
+HfFolder.save_token(HF_TOKEN)
 
 local_rank = None
 
@@ -200,7 +201,6 @@ def find_all_slm_linear_names(model):
     rank0_print(lora_module_names)
     return list(lora_module_names)
 
-
 def safe_save_model_for_hf_trainer(trainer: transformers.Trainer,
                                    output_dir: str):
     """Collects the state dict and dump to disk."""
@@ -308,6 +308,9 @@ def preprocess_multimodal(
         sources: Sequence[str],
         data_args: DataArguments
 ) -> Dict:
+    '''
+        prepends the <image> token before the sentence
+    '''
     is_multimodal = data_args.is_multimodal
     if not is_multimodal:
         return sources
@@ -667,8 +670,13 @@ class LazySupervisedDataset(Dataset):
         if 'image' in sources[0]:
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
-            processor = self.data_args.image_processor
+            # processor = self.data_args.image_processor
             image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            # Do not preprocess the image here; pass the PIL image to the data collator
+            sources = preprocess_multimodal(
+                copy.deepcopy([e["conversations"] for e in sources]),
+                self.data_args)
+            
             if self.data_args.image_aspect_ratio == 'pad':
                 def expand2square(pil_img, background_color):
                     width, height = pil_img.size
@@ -682,25 +690,27 @@ class LazySupervisedDataset(Dataset):
                         result = Image.new(pil_img.mode, (height, height), background_color)
                         result.paste(pil_img, ((height - width) // 2, 0))
                         return result
+            # else if self.data_args.image_aspect_ratio == 'square': then we apply the image_processor which happens by default further in the data collator
 
                 image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-                image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-            else:
-                image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-            sources = preprocess_multimodal(
-                copy.deepcopy([e["conversations"] for e in sources]),
-                self.data_args)
-        else:
+            #     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            # else: # self.data_args.image_aspect_ratio == 'square' - default case
+            #     # preprocesses image to 384x384 size for the img encoder
+            #     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            
+        else: # if text only input:
             sources = copy.deepcopy([e["conversations"] for e in sources])
+            
         data_dict = preprocess(
             sources,
             self.tokenizer,
             has_image=('image' in self.list_data_dict[i]))
+        
         if isinstance(i, int):
             data_dict = dict(input_ids=data_dict["input_ids"][0],
                              labels=data_dict["labels"][0])
 
-        # image exist in the data
+        # image exist in the data, add up the PIL image to data_dict
         if 'image' in self.list_data_dict[i]:
             data_dict['image'] = image
         elif self.data_args.is_multimodal:
@@ -710,6 +720,15 @@ class LazySupervisedDataset(Dataset):
             except:
                 crop_size = self.data_args.image_processor.size
             data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
+        
+        # elif self.data_args.is_multimodal:
+        #     # image does not exist in the data, but the model is multimodal
+        #     try:
+        #         crop_size = self.data_args.image_processor.crop_size
+        #     except:
+        #         crop_size = self.data_args.image_processor.size
+        #     data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
+            
         return data_dict
 
 
@@ -718,11 +737,21 @@ class DataCollatorForSupervisedDataset(object):
     """Collate examples for supervised fine-tuning."""
 
     tokenizer: transformers.PreTrainedTokenizer
+    
+    def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments):
+        self.tokenizer = tokenizer
+        self.data_args = data_args
+        self.detr_model = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
+        self.detr_processor = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
+        
+        print(f"self.tokenizer.pad_token_id: {self.tokenizer.pad_token_id}")
+        
         input_ids, labels = tuple([instance[key] for instance in instances]
                                   for key in ("input_ids", "labels"))
         # temp_pad_token_id = 51000
+        # pad sequences
         input_ids = torch.nn.utils.rnn.pad_sequence(
             input_ids,
             batch_first=True,
@@ -742,22 +771,95 @@ class DataCollatorForSupervisedDataset(object):
         )
 
         if 'image' in instances[0]:
-            images = [instance['image'] for instance in instances]
-            if all(x is not None and x.shape == images[0].shape for x in images):
-                batch['images'] = torch.stack(images)
-            else:
-                batch['images'] = images
+            images = [instance['image'] for instance in instances] # PIL Images or torch.zeroes(3, 384, 384) if text only input
+            
+            images_pil = [img for img in images if type(img) == Image.Image]
+            images_tensor_zeros_idx = [idx for idx, img in enumerate(images) if type(img) != Image.Image]
+            
+            num_images_per_sample = []
+            images_per_sample = [] 
+            bboxes_per_sample = []
+            
+            # process images through DETR in batch
+            detr_inputs = self.detr_processor(images=images_pil, return_tensors="pt").to(self.detr_model.device)
+            
+            with torch.no_grad():
+                detr_outputs = self.detr_model(**detr_inputs)
+                
+            # get bounding boxes and scores from detr outputs
+            target_sizes = torch.tensor([img.size[::-1] for img in images_pil]) # prepare target sizes for all images
+            results = self.detr_processor.post_process_object_detection(detr_outputs, target_sizes=target_sizes) # detection threshold=0.7
+            
+            for i, (image, result) in enumerate(zip(images_pil, results)):
+                curr_img_crops = [image] # original image
+                # compute original image bbox coords
+                w, h = image.size
+                curr_bboxes = [[w/2/w, h/2/h, w/w, h/h]]
+                
+                for score, label, box in zip(result['scores'], result['labels'], result['boxes']):
+                    # convert bbox coords to [x_center, y_center, w, h], and normalize to [0, 1] based on the original image size
+                    box = box.tolist()
+                    x1, y1, x2, y2 = box
+                    
+                    # convert to normalized [x_center, y_center, width, height]
+                    x_center = (x1 + x2) / 2 / w
+                    y_center = (y1 + y2) / 2 / h
+                    width = (x2 - x1) / w
+                    height = (y2 - y1) / h
+                    
+                    bbox = [x_center, y_center, width, height]
+                    curr_bboxes.append(bbox)
+                    
+                    # crop the image
+                    crop_box = [int(x1), int(y1), int(x2), int(y2)]
+                    image_crop = image.crop(crop_box)
+                    curr_img_crops.append(image_crop)
+                    
+                images_per_sample.append(curr_img_crops)
+                bboxes_per_sample.append(torch.tensor(curr_bboxes))
+                num_images_per_sample.append(len(curr_img_crops)) # main image + crops count
+                
+            print(f"Average number of images per sample for the current Batch: {sum(num_images_per_sample) / len(num_images_per_sample)}")
+                
+            # flatten the lists
+            flat_images = [img for imgs in images_per_sample for img in imgs]
+            
+            # process images using the image processor in batch
+            processor = self.data_args.image_processor
+            images_tensor = processor(images=flat_images, return_tensors='pt')['pixel_values'] # shape: [len(flat_images), 3, 384, 384] (where w = 384, h = 384)
+            
+            # build back the images hierarchy with num_images_per_sample
+            idx = 0
+            images_per_sample_tensors = []
+            for num_images in num_images_per_sample:
+                images_per_sample_tensors.append(images_tensor[idx:idx + num_images])
+                idx += num_images
+                
+            # add up the torch_zeros_idx to the images_per_sample at torch_zeros_idx index with the value in images[torch_zeros_idx]
+            added_zeros_tensor_ctr = 0
+            for idx_to_add in images_tensor_zeros_idx:
+                images_per_sample.insert(idx_to_add+added_zeros_tensor_ctr, images[idx_to_add])
+                added_zeros_tensor_ctr += 1
+                
+            # if all(x is not None and x.shape == images[0].shape for x in images):
+            #     batch['images'] = torch.stack(images)
+            # else:
+            #     batch['images'] = images
+            
+            batch['images'] = images_per_sample_tensors # list of image preprocessed tensors per sample
+            batch['bbox_coords'] = bboxes_per_sample # list of normalised bbox coords tensors per sample 
+            
+            print(f"bboxes_per_sample_tensors: {bboxes_per_sample}")
 
         return batch
 
 
-def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer,
-                                data_args) -> Dict:
+def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = LazySupervisedDataset(tokenizer=tokenizer,
                                           data_path=data_args.data_path,
                                           data_args=data_args)
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
+    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer, data_args=data_args)
     return dict(train_dataset=train_dataset,
                 eval_dataset=None,
                 data_collator=data_collator)
@@ -790,33 +892,30 @@ def train():
                 bnb_4bit_quant_type=training_args.quant_type  # {'fp4', 'nf4'}
             )
         ))
-    if "phi3" in model_args.model_name_or_path or "phi-3" in model_args.model_name_or_path:
-        config = MiphaPhi3Config.from_pretrained(model_args.model_name_or_path, trust_remote_code=True)
+    if "phi3" in model_args.model_name_or_path or "phi-3" in model_args.model_name_or_path or "phi_3" in model_args.model_name_or_path:
+        config = MiphaPhi3Config.from_pretrained(model_args.model_name_or_path)
         model = MiphaPhi3ForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             config=config,
             cache_dir=training_args.cache_dir,
-            trust_remote_code=True,
             attn_implementation="flash_attention_2",
             **bnb_model_from_pretrained_args
         )
-    elif "phi2" in model_args.model_name_or_path or "phi-2" in model_args.model_name_or_path:
-        config = MiphaPhiConfig.from_pretrained(model_args.model_name_or_path, trust_remote_code=True)
+    elif "phi2" in model_args.model_name_or_path or "phi-2" in model_args.model_name_or_path or "phi_2" in model_args.model_name_or_path:
+        config = MiphaPhiConfig.from_pretrained(model_args.model_name_or_path)
         model = MiphaPhiForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             config=config,
             cache_dir=training_args.cache_dir,
-            trust_remote_code=True,
             # attn_implementation="flash_attention_2",
             **bnb_model_from_pretrained_args
         )
     elif "gemma" in model_args.model_name_or_path:
-        config = MiphaGemmaConfig.from_pretrained(model_args.model_name_or_path, trust_remote_code=True)
+        config = MiphaGemmaConfig.from_pretrained(model_args.model_name_or_path)
         model = MiphaGemmaForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             config=config,
             cache_dir=training_args.cache_dir,
-            trust_remote_code=True,
             attn_implementation="flash_attention_2",
             **bnb_model_from_pretrained_args
         )
@@ -866,17 +965,17 @@ def train():
         model = get_peft_model(model, lora_config)
         print(model)
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
         model_max_length=training_args.model_max_length,
         padding_side="right"
     )
-    if "phi3" in model_args.model_name_or_path or "phi-3" in model_args.model_name_or_path:
+    if "phi3" in model_args.model_name_or_path or "phi-3" in model_args.model_name_or_path or "phi_3" in model_args.model_name_or_path:
         tokenizer.pad_token = tokenizer.unk_token  # use unk rather than eos token to prevent endless generation
         tokenizer.pad_token_id = tokenizer.convert_tokens_to_ids(tokenizer.pad_token)
         tokenizer.padding_side = 'right'
-    elif 'phi2' in model_args.model_name_or_path or 'phi-2' in model_args.model_name_or_path:
+    elif 'phi2' in model_args.model_name_or_path or 'phi-2' in model_args.model_name_or_path or "phi_2" in model_args.model_name_or_path:
         tokenizer.pad_token = tokenizer.unk_token
 
     if model_args.version in conversation_lib.conv_templates:
@@ -897,10 +996,11 @@ def train():
         data_args.image_processor = BitImageProcessor.from_pretrained(model_args.model_name_or_path)
     data_args.is_multimodal = True
 
-    model.config.image_aspect_ratio = data_args.image_aspect_ratio
+    model.config.image_aspect_ratio = data_args.image_aspect_ratio # square
     model.config.tokenizer_padding_side = tokenizer.padding_side
     model.config.tokenizer_model_max_length = tokenizer.model_max_length
 
+    # whether to tune the projector layer (vision to llm embedding space)
     model.config.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter
     if not model_args.tune_mm_mlp_adapter:
         for p in model.get_model().mm_projector.parameters():
@@ -909,6 +1009,7 @@ def train():
         for p in model.get_model().mm_projector.parameters():
             p.requires_grad = True
 
+    # whether to train the vision encoder model
     model.config.freeze_vision_tower = model_args.freeze_vision_tower = training_args.freeze_vision_tower
     if model_args.freeze_vision_tower:
         for p in model.get_model().vision_tower.parameters():
@@ -948,22 +1049,25 @@ def train():
                 if hasattr(module, 'weight'):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
+    
+    print("Building data module with regional crops...")
+    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
+    print("Data module built.")
 
-    data_module = make_supervised_data_module(tokenizer=tokenizer,
-                                              data_args=data_args)
-
+    repo_name = training_args.output_dir.split('/')[-1]
+    training_args.hub_model_id = repo_name
+    training_args.push_to_hub = True
+    training_args.hub_private_repo = True
+    
     trainer = MiphaTrainer(model=model,
                            tokenizer=tokenizer,
                            args=training_args,
                            **data_module)
 
-    # if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
-    #     trainer.train(resume_from_checkpoint=True)
-    # else:
-    #     trainer.train()
-
-    # TODO I dont like auto resume << REMOVE IT AND UNCOMMENT THE ABOVE CODE
-    trainer.train()
+    if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
+        trainer.train(resume_from_checkpoint=True)
+    else:
+        trainer.train()
 
     trainer.save_state()
 
