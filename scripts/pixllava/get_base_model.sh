@@ -1,5 +1,13 @@
 #!/bin/bash
 
+## download vision encoder checkpoint and llm checkpoint
+git lfs install
+mkdir -p ./ckpts
+git clone https://huggingface.co/google/siglip-so400m-patch14-384
+git clone https://huggingface.co/susnato/phi-2
+mv siglip-so400m-patch14-384 ./ckpts/siglip-so400m-patch14-384
+mv phi-2 ./ckpts/phi-2
+
 ## vision_encoder
 #vision_encoder=openai/clip-vit-large-patch14-336
 vision_encoder=./ckpts/siglip-so400m-patch14-384
@@ -16,7 +24,7 @@ outputdir=./ckpts/checkpoints-siglip/base_checkpoints/pixllava_phi_2
 # create outputdir 
 mkdir -p $outputdir
 
-python mipha_original/train/convert_model2base_mipha.py \
+python mipha/train/convert_model2base_mipha.py \
     --model_name_or_path $base_model_dir \
     --version plain \
     --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k.json \

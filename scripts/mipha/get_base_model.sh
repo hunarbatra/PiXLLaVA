@@ -2,7 +2,7 @@
 
 ## vision_encoder
 #vision_encoder=openai/clip-vit-large-patch14-336
-vision_encoder=./ckpts/siglip-so400m-patch14-384
+vision_encoder=ckpts/siglip-so400m-patch14-384
 
 ## gemma
 # base_model_dir=/path/to/google/gemma-2b
@@ -10,17 +10,17 @@ vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## phi2
 # base_model_dir=/path/to/susnato/phi-2
-base_model_dir=./ckpts/phi-2
-outputdir=./ckpts/checkpoints-siglip/base_checkpoints/pixllava_phi_2
+base_model_dir=ckpts/phi-2
+outputdir=ckpts/checkpoints-siglip/base_checkpoints/mipha_phi_2
 
 # create outputdir 
 mkdir -p $outputdir
 
-python mipha_original/train/convert_model2base_mipha.py \
+python mipha/train/convert_model2base_mipha.py \
     --model_name_or_path $base_model_dir \
     --version plain \
-    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k.json \
-    --image_folder ./data/llava-pretrain/images \
+    --data_path data/llava-pretrain/blip_laion_cc_sbu_558k_10.json \
+    --image_folder data/llava-pretrain/images \
     --vision_tower $vision_encoder \
     --mm_projector_type mlp2x_gelu \
     --tune_mm_mlp_adapter True \
@@ -30,7 +30,7 @@ python mipha_original/train/convert_model2base_mipha.py \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 16 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 2 \
     --evaluation_strategy "no" \

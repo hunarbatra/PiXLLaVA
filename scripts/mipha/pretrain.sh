@@ -10,8 +10,8 @@ vision_encoder=./ckpts/siglip-so400m-patch14-384
 # outputdir=./ckpts/checkpoints-siglip/gemma_2b/MiphaGemma-v0-2b-pretrain
 
 ## phi2
-model_name=PiXLLaVAPhi2-v0-3b
-model_dir=./ckpts/checkpoints-siglip/base_checkpoints/pixllava_phi_2
+model_name=MiphaPhi2-v0-3b
+model_dir=./ckpts/checkpoints-siglip/base_checkpoints/mipha_phi_2
 outputdir=./ckpts/checkpoints-siglip/phi_2/${model_name}-pretrain
 
 # create outputdir
@@ -23,7 +23,7 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $model_dir \
     --version plain \
-    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k.json \
+    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_10.json \
     --image_folder ./data/llava-pretrain/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower True \
@@ -33,7 +33,7 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 32 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 1 \
     --evaluation_strategy "no" \

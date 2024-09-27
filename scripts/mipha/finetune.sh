@@ -10,7 +10,7 @@ vision_encoder=./ckpts/siglip-so400m-patch14-384
 # outputdir=./ckpts/checkpoints-siglip/gemma_2b/MiphaGemma-v0-2b-finetune
 
 ## phi2
-model_name=PiXLLaVAPhi2-v0-3b
+model_name=MiphaPhi2-v0-3b
 model_dir=./ckpts/checkpoints-siglip/phi_2/${model_name}-pretrain
 outputdir=./ckpts/checkpoints-siglip/phi_2/${model_name}-finetune
 
