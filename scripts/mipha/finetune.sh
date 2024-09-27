@@ -19,12 +19,17 @@ mkdir -p $outputdir
 
 ## Note: to run on certain devices do: deepspeed --master_port XXX --include localhost:0,2 ...
 
+# gradient accumulation steps = 4
+# per_device_train_batch_size = 4
+# num_gpus = 8
+# total global batch size = 4 * 4 * 8 = 128 
+
 deepspeed --master_port 29600 mipha/train/train.py \
     --deepspeed ./scripts/zero3.json \
     --model_name_or_path $model_dir \
     --version v0 \
-    --data_path ./path/to/data/llava_v1_5_mix665k.json \
-    --image_folder ./path/to/data/llava-finetune/data \
+    --data_path ./data/llava-finetune/llava_v1_5_mix665k.json \
+    --image_folder ./data/llava-finetune/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower False \
     --freeze_backbone False \
@@ -35,7 +40,7 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 2 \
-    --per_device_train_batch_size 16 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \

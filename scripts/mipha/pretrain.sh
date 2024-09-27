@@ -19,6 +19,11 @@ mkdir -p $outputdir
 
 ## Note: to run on certain devices do: deepspeed --master_port XXX --include localhost:0,2 ...
 
+# gradient accumulation steps = 1
+# per_device_train_batch_size = 32
+# num_gpus = 8
+# total global batch size = 32 * 1 * 8 = 256
+
 deepspeed --master_port 29600 mipha/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $model_dir \
