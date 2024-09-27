@@ -670,7 +670,7 @@ class LazySupervisedDataset(Dataset):
         if 'image' in sources[0]:
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
-            # processor = self.data_args.image_processor
+            processor = self.data_args.image_processor
             image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
             # Do not preprocess the image here; pass the PIL image to the data collator
             sources = preprocess_multimodal(
@@ -738,11 +738,11 @@ class DataCollatorForSupervisedDataset(object):
 
     tokenizer: transformers.PreTrainedTokenizer
     
-    def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments):
+    def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments, detr_model: DetrForObjectDetection, detr_processor: DetrImageProcessor):
         self.tokenizer = tokenizer
         self.data_args = data_args
-        self.detr_model = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
-        self.detr_processor = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
+        self.detr_model = detr_model
+        self.detr_processor = detr_processor
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         
@@ -854,19 +854,42 @@ class DataCollatorForSupervisedDataset(object):
         return batch
 
 
-def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments) -> Dict:
+def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments, detr_model: DetrForObjectDetection, detr_processor: DetrImageProcessor) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = LazySupervisedDataset(tokenizer=tokenizer,
                                           data_path=data_args.data_path,
                                           data_args=data_args)
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer, data_args=data_args)
+    
+    data_collator = DataCollatorForSupervisedDataset(
+        tokenizer=tokenizer, 
+        data_args=data_args, 
+        detr_model=detr_model, 
+        detr_processor=detr_processor
+    )
+    
     return dict(train_dataset=train_dataset,
                 eval_dataset=None,
                 data_collator=data_collator)
 
+def init_detr_model():
+    # Initialize the DETR model and processor
+    print("Initializing DETR model and processor...")
+    detr_model = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
+    detr_processor = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
+    
+    # Set DETR model to evaluation mode and disable gradients
+    detr_model.eval()
+    for param in detr_model.parameters():
+        param.requires_grad = False
+    print("DETR model and processor initialized.")
+    
+    return detr_model, detr_processor
 
 def train():
     global local_rank
+    
+    # initialise DETR model and processor before the Main Model / DeepSpeed initialization to avoid DeepSpeed from wrapping the model iniitalization, which leads to size mismatch errors
+    detr_model, detr_processor = init_detr_model()
 
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments))
@@ -1051,7 +1074,7 @@ def train():
                         module = module.to(torch.bfloat16)
     
     print("Building data module with regional crops...")
-    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
+    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args, detr_model=detr_model, detr_processor=detr_processor)
     print("Data module built.")
 
     # Push the model to HuggingFace Hub

@@ -287,7 +287,7 @@ class MiphaMetaForCausalLM(ABC):
         # After preparing new_input_embeds and new_labels
         print(f"Batch {batch_idx}:")
         print(f"cur_input_ids shape: {cur_input_ids.shape}")
-        print(f"cur_new_input_embeds shape: {cur_new_input_embeds.shape}")
+        print(f"cur_new_input_embeds shape: {cur_new_input_embeds.shape}, images len: {images[0].shape}")
         print(f"cur_new_labels shape: {cur_new_labels.shape}")
 
         print(f"new_input_embeds shape: {new_input_embeds.shape}")
