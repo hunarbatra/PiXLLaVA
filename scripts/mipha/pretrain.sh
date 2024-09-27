@@ -2,22 +2,29 @@
 
 ## vision_encoder
 #vision_encoder=openai/clip-vit-large-patch14-336
-vision_encoder=google/siglip-so400m-patch14-384
+# vision_encoder=google/siglip-so400m-patch14-384
+vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## gemma
 # model_dir=./ckpts/checkpoints-siglip/base_checkpoints/mipha_gemma
 # outputdir=./ckpts/checkpoints-siglip/gemma_2b/MiphaGemma-v0-2b-pretrain
 
 ## phi2
-model_dir=./ckpts/checkpoints-siglip/base_checkpoints/mipha_phi_2
-outputdir=./ckpts/checkpoints-siglip/phi_2/MiphaPhi2-v0-3b-pretrain
+model_name=PiXLLaVAPhi2-v0-3b
+model_dir=./ckpts/checkpoints-siglip/base_checkpoints/pixllava_phi_2
+outputdir=./ckpts/checkpoints-siglip/phi_2/${model_name}-pretrain
+
+# create outputdir
+mkdir -p $outputdir
+
+## Note: to run on certain devices do: deepspeed --master_port XXX --include localhost:0,2 ...
 
 deepspeed --master_port 29600 mipha/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $model_dir \
     --version plain \
-    --data_path /path/to/data/llava-pretrain/blip_laion_cc_sbu_558k.json \
-    --image_folder /path/to/data/llava-pretrain/images \
+    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k.json \
+    --image_folder ./data/llava-pretrain/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower True \
     --freeze_backbone True \
