@@ -61,7 +61,8 @@ class MiphaGemmaForCausalLM(GemmaPreTrainedModel, MiphaMetaForCausalLM):
             use_cache: Optional[bool] = None,
             output_attentions: Optional[bool] = None,
             output_hidden_states: Optional[bool] = None,
-            images: Optional[torch.FloatTensor] = None,
+            images: Optional[List[torch.FloatTensor]] = None,
+            bbox_coords: Optional[List[torch.FloatTensor]] = None,
             return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -71,7 +72,7 @@ class MiphaGemmaForCausalLM(GemmaPreTrainedModel, MiphaMetaForCausalLM):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         input_ids, attention_mask, past_key_values, inputs_embeds, labels = self.prepare_inputs_labels_for_multimodal(
-            input_ids, attention_mask, past_key_values, labels, images)
+            input_ids, attention_mask, past_key_values, labels, images, bbox_coords)
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         outputs = self.model(
@@ -131,6 +132,7 @@ class MiphaGemmaForCausalLM(GemmaPreTrainedModel, MiphaMetaForCausalLM):
                 "use_cache": kwargs.get("use_cache"),
                 "attention_mask": attention_mask,
                 "images": kwargs.get("images", None),
+                "bbox_coords": kwargs.get("bbox_coords", None),
             }
         )
         return model_inputs
