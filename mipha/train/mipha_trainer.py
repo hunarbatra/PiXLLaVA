@@ -57,33 +57,56 @@ def get_modality_length_grouped_indices(lengths, batch_size, world_size, generat
     assert all(l != 0 for l in lengths), "Should not have zero length."
     # assert all(l > 0 for l in lengths) or all(l < 0 for l in lengths), "Should have only positive or negative lengths."
 
-    mm_indices, mm_lengths = zip(*[(i, l) for i, l in enumerate(lengths) if l > 0])
-    lang_indices, lang_lengths = zip(*[(i, -l) for i, l in enumerate(lengths) if l < 0])
+    # mm_indices, mm_lengths = zip(*[(i, l) for i, l in enumerate(lengths) if l > 0])
+    # lang_indices, lang_lengths = zip(*[(i, -l) for i, l in enumerate(lengths) if l < 0])
 
-    assert len(mm_indices) > 0, "Should have at least one multimodal sample."
-    assert len(lang_indices) > 0, "Should have at least one language sample."
+    # assert len(mm_indices) > 0, "Should have at least one multimodal sample."
+    # assert len(lang_indices) > 0, "Should have at least one language sample."
+    
+    mm_list = [(i, l) for i, l in enumerate(lengths) if l > 0]
+    lang_list = [(i, -l) for i, l in enumerate(lengths) if l < 0]
 
-    mm_shuffle = [mm_indices[i] for i in get_length_grouped_indices(mm_lengths, batch_size, world_size, generator=None)]
-    lang_shuffle = [lang_indices[i] for i in get_length_grouped_indices(lang_lengths, batch_size, world_size, generator=None)]
-    megabatch_size = world_size * batch_size
-    mm_megabatches = [mm_shuffle[i : i + megabatch_size] for i in range(0, len(mm_shuffle), megabatch_size)]
-    lang_megabatches = [lang_shuffle[i : i + megabatch_size] for i in range(0, len(lang_shuffle), megabatch_size)]
+    # handle cases when only multimodal or language only or both of these types of data are present
+    if mm_list:
+        mm_indices, mm_lengths = zip(*mm_list)
+    else:
+        mm_indices, mm_lengths = [], []
 
-    last_mm = mm_megabatches[-1]
-    last_lang = lang_megabatches[-1]
-    additional_batch = last_mm + last_lang
-    megabatches = mm_megabatches[:-1] + lang_megabatches[:-1]
-    megabatch_indices = torch.randperm(len(megabatches), generator=generator)
-    megabatches = [megabatches[i] for i in megabatch_indices]
+    if lang_list:
+        lang_indices, lang_lengths = zip(*lang_list)
+    else:
+        lang_indices, lang_lengths = [], []
 
-    if len(additional_batch) >= megabatch_size:
-        megabatches = [additional_batch[:megabatch_size]] + megabatches
-        additional_batch = additional_batch[megabatch_size:]
+    if len(mm_indices) == 0:
+        # Only language samples
+        indices = get_length_grouped_indices(lang_lengths, batch_size, world_size, generator=generator)
+        return [lang_indices[i] for i in indices]
+    elif len(lang_indices) == 0:
+        # Only multimodal samples
+        indices = get_length_grouped_indices(mm_lengths, batch_size, world_size, generator=generator)
+        return [mm_indices[i] for i in indices]
+    else:
+        mm_shuffle = [mm_indices[i] for i in get_length_grouped_indices(mm_lengths, batch_size, world_size, generator=None)]
+        lang_shuffle = [lang_indices[i] for i in get_length_grouped_indices(lang_lengths, batch_size, world_size, generator=None)]
+        megabatch_size = world_size * batch_size
+        mm_megabatches = [mm_shuffle[i : i + megabatch_size] for i in range(0, len(mm_shuffle), megabatch_size)]
+        lang_megabatches = [lang_shuffle[i : i + megabatch_size] for i in range(0, len(lang_shuffle), megabatch_size)]
 
-    if len(additional_batch) > 0:
-        megabatches.append(additional_batch)
+        last_mm = mm_megabatches[-1]
+        last_lang = lang_megabatches[-1]
+        additional_batch = last_mm + last_lang
+        megabatches = mm_megabatches[:-1] + lang_megabatches[:-1]
+        megabatch_indices = torch.randperm(len(megabatches), generator=generator)
+        megabatches = [megabatches[i] for i in megabatch_indices]
 
-    return [i for megabatch in megabatches for i in megabatch]
+        if len(additional_batch) >= megabatch_size:
+            megabatches = [additional_batch[:megabatch_size]] + megabatches
+            additional_batch = additional_batch[megabatch_size:]
+
+        if len(additional_batch) > 0:
+            megabatches.append(additional_batch)
+
+        return [i for megabatch in megabatches for i in megabatch]
 
 
 def get_length_grouped_indices(lengths, batch_size, world_size, generator=None, merge=True):
@@ -133,26 +156,6 @@ class LengthGroupedSampler(Sampler):
 
 class MiphaTrainer(Trainer):
     
-    def training_step(self, model, inputs):
-        print("Trainer received inputs:")
-        print("Keys:", inputs.keys())
-        if 'new_images' in inputs:
-            print("new_images:", inputs['new_images'])
-        else:
-            print("new_images not in inputs")
-        return super().training_step(model, inputs)
-    
-    def compute_loss(self, model, inputs, return_outputs=False):
-        # Print the keys in inputs to verify all expected keys are present
-        print("Compute Loss - Inputs Keys:", inputs.keys())
-        if 'new_images' in inputs:
-            print("Compute Loss - new_images:", inputs['new_images'])
-        else:
-            print("Compute Loss - new_images not found")
-
-        # Call the base class compute_loss
-        return super().compute_loss(model, inputs, return_outputs)
-
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         if self.train_dataset is None or not has_length(self.train_dataset):
             return None
