@@ -17,6 +17,8 @@ outputdir=./ckpts/checkpoints-siglip/phi_2/${model_name}-pretrain
 # create outputdir
 mkdir -p $outputdir
 
+cp $vision_encoder/preprocessor_config.json  $outputdir
+
 ## Note: to run on certain devices do: deepspeed --master_port XXX --include localhost:0,2 ...
 
 # gradient accumulation steps = 1
@@ -28,7 +30,7 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $model_dir \
     --version plain \
-    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_10.json \
+    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k.json \
     --image_folder ./data/llava-pretrain/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower True \
@@ -38,7 +40,7 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 1 \
+    --per_device_train_batch_size 32 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 1 \
     --evaluation_strategy "no" \
@@ -56,5 +58,3 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
     --report_to wandb
-
-cp $vision_encoder/preprocessor_config.json  $outputdir

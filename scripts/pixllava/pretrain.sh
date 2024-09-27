@@ -17,6 +17,8 @@ outputdir=./ckpts/checkpoints-siglip/phi_2/$model_name
 # create outputdir
 mkdir -p $outputdir
 
+cp $vision_encoder/preprocessor_config.json $outputdir
+
 ## Note: to run on certain devices do: deepspeed --master_port XXX --include localhost:0,2 ...
 
 # gradient accumulation steps = 1
@@ -56,5 +58,3 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
     --report_to wandb
-
-cp $vision_encoder/preprocessor_config.json $outputdir
