@@ -794,26 +794,38 @@ class DataCollatorForSupervisedDataset(object):
                 curr_img_crops = [image] # original image
                 # compute original image bbox coords
                 w, h = image.size
-                curr_bboxes = [[w/2/w, h/2/h, w/w, h/h]]
+                curr_bboxes = [[0.5, 0.5, 1.0, 1.0]] # [[w/2/w, h/2/h, w/w, h/h]] -> [x_center, y_center, width, height] bbox coords for the original img with normalization - these bbox coords do not end up being used for the original image
                 
-                for score, label, box in zip(result['scores'], result['labels'], result['boxes']):
-                    # convert bbox coords to [x_center, y_center, w, h], and normalize to [0, 1] based on the original image size
-                    box = box.tolist()
-                    x1, y1, x2, y2 = box
+                if len(result['scores']) > 0:
+                    sorted_indices = torch.argsort(result['scores'], descending=True)
+                    sorted_scores = result['scores'][sorted_indices]
+                    sorted_labels = result['labels'][sorted_indices]
+                    sorted_boxes = result['boxes'][sorted_indices]
                     
-                    # convert to normalized [x_center, y_center, width, height]
-                    x_center = (x1 + x2) / 2 / w
-                    y_center = (y1 + y2) / 2 / h
-                    width = (x2 - x1) / w
-                    height = (y2 - y1) / h
-                    
-                    bbox = [x_center, y_center, width, height]
-                    curr_bboxes.append(bbox)
-                    
-                    # crop the image
-                    crop_box = [int(x1), int(y1), int(x2), int(y2)]
-                    image_crop = image.crop(crop_box)
-                    curr_img_crops.append(image_crop)
+                    max_crops = 9
+            
+                    for score, label, box in zip(sorted_scores, sorted_labels, sorted_boxes):
+                        # convert bbox coords to [x_center, y_center, w, h], and normalize to [0, 1] based on the original image size
+                        box = box.tolist()
+                        x1, y1, x2, y2 = box
+                        
+                        # convert to normalized [x_center, y_center, width, height]
+                        x_center = (x1 + x2) / 2 / w
+                        y_center = (y1 + y2) / 2 / h
+                        width = (x2 - x1) / w
+                        height = (y2 - y1) / h
+                        
+                        bbox = [x_center, y_center, width, height]
+                        curr_bboxes.append(bbox)
+                        
+                        # crop the image
+                        crop_box = [int(x1), int(y1), int(x2), int(y2)]
+                        image_crop = image.crop(crop_box)
+                        curr_img_crops.append(image_crop)
+                        
+                        if len(curr_img_crops) == max_crops + 1: 
+                            print(f"Truncating image crops to {max_crops} crops. Remaining crops with lower scores not being processed: {len(curr_img_crops) - max_crops}")
+                            break
                     
                 images_per_sample.append(curr_img_crops)
                 bboxes_per_sample.append(torch.tensor(curr_bboxes))
