@@ -150,7 +150,7 @@ class MiphaTrainer(Trainer):
             return super()._get_train_sampler()
 
     def _save_checkpoint(self, model, trial, metrics=None):
-        super(MiphaTrainer, self)._save_checkpoint(model, trial, metrics)
+        super(MiphaTrainer, self)._save_checkpoint(model, trial, metrics, use_reentrant=True)
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
-            super(MiphaTrainer, self)._save(output_dir, state_dict)
+        super(MiphaTrainer, self)._save(output_dir, state_dict)
