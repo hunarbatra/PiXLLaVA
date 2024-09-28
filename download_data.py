@@ -89,9 +89,10 @@ def download_pretrain_dataset():
     if not os.path.exists(json_file_path):
         download_file(json_url, json_file_path, headers=headers)
     print('JSON file downloaded to:', json_file_path)
-
+    
+    os.makedirs(images_extract_path, exist_ok=True)
     print('Downloading images.zip file...')
-    if not os.path.exists(images_extract_path) and not os.path.exists(images_zip_path):
+    if not os.path.exists(images_extract_path) or len(os.listdir(images_extract_path)) == 0:
         download_and_extract_zip_hf_transfer(
             images_zip_url,
             images_extract_path,
@@ -230,8 +231,7 @@ def coco_data_test():
     os.makedirs(coco_extract_to, exist_ok=True)
     # if not os.path.exists(coco_extract_to) or len(os.listdir(coco_extract_to)) == 0:
     download_and_extract_zip_hf_transfer(coco_url, coco_extract_to, zip_filename='train2017.zip')
-
-    
+     
     
 if __name__ == '__main__':
     fire.Fire({
