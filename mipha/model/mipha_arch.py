@@ -72,9 +72,9 @@ class MiphaMetaForCausalLM(ABC):
         
         # flatten images and encode them
         flat_images = torch.cat(images, dim=0) # shape: [total_num_images, channels, height, width]
-        print(f"flat_images.shape: {flat_images.shape}")
+        # print(f"flat_images.shape: {flat_images.shape}")
         flat_image_features = self.get_model().get_vision_tower()(flat_images) # shape: [total_num_images, 1, hidden_dim]
-        print(f"flat_image_features.shape: {flat_image_features.shape}")
+        # print(f"flat_image_features.shape: {flat_image_features.shape}")
         
         # split image features back into per-sample lists
         image_features_per_sample = []
@@ -88,23 +88,23 @@ class MiphaMetaForCausalLM(ABC):
         for i, (img_feats, bbox_coords) in enumerate(zip(image_features_per_sample, bbox_coords_per_sample)):
             if bbox_coords.shape[0] > 1: # add bbox embeddings to object crops (excluding the original image)
                 # apply bbox embedding
-                print(f"before adding bbox: img_feats.shape: {img_feats.shape}")
+                # print(f"before adding bbox: img_feats.shape: {img_feats.shape}")
                 bbox_embeddings = self.get_model().bbox_embedder(bbox_coords[1:].to(img_feats.device)) # shape: [num_crops, 1, hidden_dim]
-                print(f"model config: {self.get_model().config}")
-                print(f"vision_model config: {self.get_model().get_vision_tower().config}")
+                # print(f"model config: {self.get_model().config}")
+                # print(f"vision_model config: {self.get_model().get_vision_tower().config}")
                 bbox_embeddings = bbox_embeddings.view(bbox_embeddings.shape[0], 729, 1152) # shape: [num_crops, hidden_dim1, hidden_dim2] # TODO: add dynamic dim here
-                print(f"bbox_embeddings.shape: {bbox_embeddings.shape}")
-                print(f"img_feats.shape: {img_feats.shape}")
-                print(f"img_feats[1:].shape: {img_feats[1:].shape}")
+                # print(f"bbox_embeddings.shape: {bbox_embeddings.shape}")
+                # print(f"img_feats.shape: {img_feats.shape}")
+                # print(f"img_feats[1:].shape: {img_feats[1:].shape}")
                 img_feats[1:] += bbox_embeddings # img_feats shape is: [num_images, 1, hidden_dim]
-                print(f"after adding bbox: img_feats.shape: {img_feats.shape}")
+                # print(f"after adding bbox: img_feats.shape: {img_feats.shape}")
             
         # flatten image features back into a single tensor per sample
         flat_features = torch.cat(image_features_per_sample, dim=0) # shape of each element in the list: [total_num_images, 1, hidden_dim]
-        print(f"flat_features.shape: {flat_features.shape}")
+        # print(f"flat_features.shape: {flat_features.shape}")
         # pass flattened features through the projector together
         flat_projected_features = self.get_model().mm_projector(flat_features) # shape of each element in the list: [total_num_images, 1, hidden_dim]
-        print(f"flat_projected_features.shape: {flat_projected_features.shape}")
+        # print(f"flat_projected_features.shape: {flat_projected_features.shape}")
         
         # split projected features back into per-sample lists i.e list of stacked tensors per sample
         projected_features_per_sample = []
@@ -114,7 +114,7 @@ class MiphaMetaForCausalLM(ABC):
             projected_features_per_sample.append(flat_projected_features[idx:idx + num_images])
             idx += num_images
             
-        print(f"projected_features_per_sample: {projected_features_per_sample}")
+        # print(f"projected_features_per_sample: {projected_features_per_sample}")
         
         return projected_features_per_sample # list of tensors per sample, each element in the list is a tensor of shape [num_images, 1, hidden_dim] i.e stacked tensors per sample
 
@@ -233,10 +233,10 @@ class MiphaMetaForCausalLM(ABC):
                 new_labels.append(cur_new_labels)
 
         if any(x.shape != new_input_embeds[0].shape for x in new_input_embeds):
-            print('inside padding function')
+            # print('inside padding function')
             # if any of the elements shape in inputs is not the same as the first element shape, then we need to pad the inputs to the same shape
             max_len = max(x.shape[0] for x in new_input_embeds) # get the max length of the input embeds
-            print(f"max_len: {max_len}")
+            # print(f"max_len: {max_len}")
 
             new_input_embeds_align = []
             for cur_new_embed in new_input_embeds:
@@ -272,7 +272,7 @@ class MiphaMetaForCausalLM(ABC):
                 attention_mask = torch.stack(new_attention_mask, dim=0)
                 assert attention_mask.shape == new_labels.shape
         else:
-            print('inside no padding function')
+            # print('inside no padding function')
             new_input_embeds = torch.stack(new_input_embeds, dim=0)
             if labels is not None:
                 new_labels = torch.stack(new_labels, dim=0)
