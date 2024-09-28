@@ -55,6 +55,8 @@ def download_and_extract_zip_hf_transfer(url, extract_to, zip_filename='temp.zip
     """
     # Define the local path for the zip file
     zip_path = os.path.join(extract_to, zip_filename)
+
+    os.makedirs(extract_to, exist_ok=True)
     
     # Download the file using hf_transfer
     print(f'Downloading {os.path.basename(url)} with hf_transfer...')
