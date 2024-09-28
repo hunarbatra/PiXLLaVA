@@ -824,14 +824,14 @@ class DataCollatorForSupervisedDataset(object):
                         curr_img_crops.append(image_crop)
                         
                         if len(curr_img_crops) == max_crops + 1: 
-                            print(f"Truncating image crops to {max_crops} crops. Remaining crops with lower scores not being processed: {len(curr_img_crops) - max_crops}")
+                            # print(f"Truncating image crops to {max_crops} crops. Remaining crops with lower scores not being processed: {len(curr_img_crops) - max_crops}")
                             break
                     
                 images_per_sample.append(curr_img_crops)
                 bboxes_per_sample.append(torch.tensor(curr_bboxes))
                 num_images_per_sample.append(len(curr_img_crops)) # main image + crops count
                 
-            print(f"Average number of images per sample for the current Batch: {sum(num_images_per_sample) / len(num_images_per_sample)}")
+            # print(f"Average number of images per sample for the current Batch: {sum(num_images_per_sample) / len(num_images_per_sample)}")
                 
             # flatten the lists
             flat_images = [img for imgs in images_per_sample for img in imgs]
@@ -861,7 +861,7 @@ class DataCollatorForSupervisedDataset(object):
             batch['images'] = images_per_sample_tensors # list of image preprocessed tensors per sample
             batch['bbox_coords'] = bboxes_per_sample # list of normalised bbox coords tensors per sample 
             
-            print(f"bboxes_per_sample_tensors: {bboxes_per_sample}")
+            # print(f"bboxes_per_sample_tensors: {bboxes_per_sample}")
 
         return batch
 
@@ -885,7 +885,7 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, dat
 
 def init_detr_model():
     # Initialize the DETR model and processor
-    print("Initializing DETR model and processor...")
+    # print("Initializing DETR model and processor...")
     detr_model = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
     detr_processor = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
     
@@ -893,7 +893,7 @@ def init_detr_model():
     detr_model.eval()
     for param in detr_model.parameters():
         param.requires_grad = False
-    print("DETR model and processor initialized.")
+    # print("DETR model and processor initialized.")
     
     return detr_model, detr_processor
 
@@ -1085,9 +1085,9 @@ def train():
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
     
-    print("Building data module with regional crops...")
+    # print("Building data module with regional crops...")
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args, detr_model=detr_model, detr_processor=detr_processor)
-    print("Data module built.")
+    # print("Data module built.")
 
     # Push the model to HuggingFace Hub
     repo_name = training_args.output_dir.split('/')[-1]

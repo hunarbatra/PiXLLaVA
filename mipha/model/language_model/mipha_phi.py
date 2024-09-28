@@ -89,8 +89,8 @@ class MiphaPhiForCausalLM(PhiPreTrainedModel, MiphaMetaForCausalLM):
             shift_labels = shift_labels.to(shift_logits.device)
             
             # Before computing loss
-            print(f"shift_logits shape: {shift_logits.shape}")
-            print(f"shift_labels shape: {shift_labels.shape}")
+            # print(f"shift_logits shape: {shift_logits.shape}")
+            # print(f"shift_labels shape: {shift_labels.shape}")
         
             loss = loss_fct(shift_logits, shift_labels)
 

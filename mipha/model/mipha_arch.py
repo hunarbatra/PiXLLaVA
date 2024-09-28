@@ -285,18 +285,18 @@ class MiphaMetaForCausalLM(ABC):
                 assert attention_mask.shape == new_input_embeds.shape[:2]
                 
         # After preparing new_input_embeds and new_labels
-        print(f"Batch {batch_idx}:")
-        print(f"cur_input_ids shape: {cur_input_ids.shape}")
-        print(f"cur_new_input_embeds shape: {cur_new_input_embeds.shape}, images len: {images[0].shape}")
-        print(f"cur_new_labels shape: {cur_new_labels.shape}")
+        # print(f"Batch {batch_idx}:")
+        # print(f"cur_input_ids shape: {cur_input_ids.shape}")
+        # print(f"cur_new_input_embeds shape: {cur_new_input_embeds.shape}, images len: {images[0].shape}")
+        # print(f"cur_new_labels shape: {cur_new_labels.shape}")
 
-        print(f"new_input_embeds shape: {new_input_embeds.shape}")
-        print(f"new_labels shape: {new_labels.shape}")
-        print(f"new labels: {new_labels}")
-        print(f"attention_mask shape: {attention_mask.shape}")
+        # print(f"new_input_embeds shape: {new_input_embeds.shape}")
+        # print(f"new_labels shape: {new_labels.shape}")
+        # print(f"new labels: {new_labels}")
+        # print(f"attention_mask shape: {attention_mask.shape}")
         
-        max_len = max(x.shape[0] for x in new_input_embeds) # get the max length of the input embeds
-        print(f"max_len: {max_len}")
+        # max_len = max(x.shape[0] for x in new_input_embeds) # get the max length of the input embeds
+        # print(f"max_len: {max_len}")
 
         return None, attention_mask, past_key_values, new_input_embeds, new_labels
 
