@@ -89,10 +89,9 @@ def download_pretrain_dataset():
     if not os.path.exists(json_file_path):
         download_file(json_url, json_file_path, headers=headers)
     print('JSON file downloaded to:', json_file_path)
-    
-    os.makedirs(images_extract_path, exist_ok=True)
+
     print('Downloading images.zip file...')
-    if not os.path.exists(images_extract_path) or len(os.listdir(images_extract_path)) == 0:
+    if not os.path.exists(images_extract_path) and not os.path.exists(images_zip_path):
         download_and_extract_zip_hf_transfer(
             images_zip_url,
             images_extract_path,
@@ -145,80 +144,98 @@ def download_finetune_dataset():
     json_url = 'https://huggingface.co/datasets/hunarbatra/LLaVA-finetune665k/resolve/main/llava_v1_5_mix665k.json'
     json_file_path = 'data/llava-finetune/llava_v1_5_mix665k.json'
 
-    headers = None  # or headers = {'Authorization': 'Bearer YOUR_HF_ACCESS_TOKEN'}
+    headers = {'Authorization': f'Bearer {os.getenv("HF_TOKEN")}'}
 
-    # Download the fine-tuning JSON file
-    print('Downloading fine-tuning JSON file...')
-    if not os.path.exists(json_file_path):
-        download_file(json_url, json_file_path, headers=headers)
-    print('JSON file downloaded to:', json_file_path)
-    
-    # ocr vqa data json
-    # ocr_vqa_json_url = 'https://huggingface.co/datasets/hunarbatra/LLaVA-finetune665k/resolve/main/ocr_vqa_dataset.json'
-    # ocr_vqa_json_file_path = 'data/llava-finetune/dataset.json'
-    
-    # print('Downloading OCR-VQA JSON file...')
-    # if not os.path.exists(ocr_vqa_json_file_path):
-    #     download_file(ocr_vqa_json_url, ocr_vqa_json_file_path, headers=headers)
-    # print('OCR-VQA JSON file downloaded to:', ocr_vqa_json_file_path)
+    def download_json():
+        print('Downloading fine-tuning JSON file...')
+        if not os.path.exists(json_file_path):
+            download_file(json_url, json_file_path, headers=headers)
+        print('JSON file downloaded to:', json_file_path)
 
-    # Download and organize datasets
-    print('\nStarting dataset downloads and extraction...\n')
+    download_tasks = []
 
     # 1. COCO Dataset
-    # coco_url = 'http://images.cocodataset.org/zips/train2017.zip'
-    coco_url = 'https://huggingface.co/datasets/BoyangZ/coco_train_2017/resolve/main/train2017.zip'
-    coco_extract_to = os.path.join(images_root, 'coco')
-    os.makedirs(coco_extract_to, exist_ok=True)
-    if not os.path.exists(coco_extract_to) or len(os.listdir(coco_extract_to)) == 0:
-        download_and_extract_zip_hf_transfer(coco_url, coco_extract_to)
- 
+    def download_coco():
+        print('Starting Coco download')
+        coco_url = 'https://huggingface.co/datasets/BoyangZ/coco_train_2017/resolve/main/train2017.zip'
+        coco_extract_to = os.path.join(images_root, 'coco')
+        os.makedirs(coco_extract_to, exist_ok=True)
+        if not os.path.exists(coco_extract_to) or len(os.listdir(coco_extract_to)) == 0:
+            print('Downloading and extracting COCO dataset...')
+            download_and_extract_zip_hf_transfer(coco_url, coco_extract_to, zip_filename="coco_temp.zip")
+            print('COCO dataset downloaded and extracted.')
+
+    download_tasks.append(download_coco)
+
     # 2. GQA Dataset
-    # gqa_url = 'https://downloads.cs.stanford.edu/nlp/data/gqa/images.zip'
-    gqa_url = 'https://huggingface.co/datasets/BoyangZ/GQA_llava/resolve/main/images.zip'
-    gqa_extract_to = os.path.join(images_root, 'gqa')
-    os.makedirs(gqa_extract_to, exist_ok=True)
-    if not os.path.exists(gqa_extract_to) or len(os.listdir(gqa_extract_to)) == 0:
-        download_and_extract_zip_hf_transfer(gqa_url, gqa_extract_to)
+    def download_gqa():
+        print('Starting GQA download')
+        gqa_url = 'https://huggingface.co/datasets/BoyangZ/GQA_llava/resolve/main/images.zip'
+        gqa_extract_to = os.path.join(images_root, 'gqa')
+        os.makedirs(gqa_extract_to, exist_ok=True)
+        if not os.path.exists(gqa_extract_to) or len(os.listdir(gqa_extract_to)) == 0:
+            print('Downloading and extracting GQA dataset...')
+            download_and_extract_zip_hf_transfer(gqa_url, gqa_extract_to, zip_filename="cqa_temp.zip")
+            print('GQA dataset downloaded and extracted.')
 
-    # # 3. OCR-VQA Dataset - 207572 images
-    # ocr_vqa_json_path = 'data/llava-finetune/dataset.json' 
-    # ocr_vqa_images_dir = os.path.join(images_root, 'ocr_vqa/images')
-    # os.makedirs(ocr_vqa_images_dir, exist_ok=True)
-    # if not os.path.exists(ocr_vqa_images_dir) or len(os.listdir(ocr_vqa_images_dir)) < 207572:
-    #     print('Loading OCR-VQA dataset JSON from local file...')
-    #     with open(ocr_vqa_json_path, 'r') as fp:
-    #         data = json.load(fp)
+    download_tasks.append(download_gqa)
 
-    #     # Parallel downloading of images
-    #     print(f'Downloading OCR-VQA images to {ocr_vqa_images_dir}...')
-    #     download_ocr_vqa_images(data, ocr_vqa_images_dir)
-    ocr_vqa_url = 'https://huggingface.co/datasets/BoyangZ/OCR_VQA/resolve/main/ocr_vqa_images_llava_v15.zip'
-    ocr_vqa_extract_to = os.path.join(images_root, 'ocr_vqa')
-    os.makedirs(ocr_vqa_extract_to, exist_ok=True)
-    if not os.path.exists(ocr_vqa_extract_to) or len(os.listdir(ocr_vqa_extract_to)) == 0:
-        download_and_extract_zip_hf_transfer(ocr_vqa_url, ocr_vqa_extract_to)
-        
+    # 3. OCR-VQA Dataset
+    def download_ocr_vqa():
+        print('Starting OCR download')
+        ocr_vqa_url = 'https://huggingface.co/datasets/BoyangZ/OCR_VQA/resolve/main/ocr_vqa_images_llava_v15.zip'
+        ocr_vqa_extract_to = os.path.join(images_root, 'ocr_vqa')
+        os.makedirs(ocr_vqa_extract_to, exist_ok=True)
+        if not os.path.exists(ocr_vqa_extract_to) or len(os.listdir(ocr_vqa_extract_to)) == 0:
+            print('Downloading and extracting OCR-VQA dataset...')
+            download_and_extract_zip_hf_transfer(ocr_vqa_url, ocr_vqa_extract_to, zip_filename="ocr_temp.zip")
+            print('OCR-VQA dataset downloaded and extracted.')
+
+    download_tasks.append(download_ocr_vqa)
+
     # 4. TextVQA Dataset
-    # textvqa_url = 'https://dl.fbaipublicfiles.com/textvqa/images/train_val_images.zip'
-    textvqa_url = 'https://huggingface.co/datasets/BoyangZ/text_vqa_train_val_images/resolve/main/train_val_images.zip'
-    textvqa_extract_to = os.path.join(images_root, 'textvqa')
-    os.makedirs(textvqa_extract_to, exist_ok=True)
-    if not os.path.exists(textvqa_extract_to) or len(os.listdir(textvqa_extract_to)) == 0:
-        download_and_extract_zip_hf_transfer(textvqa_url, textvqa_extract_to)
+    def download_textvqa():
+        print('Starting TextVQA download')
+        textvqa_url = 'https://huggingface.co/datasets/BoyangZ/text_vqa_train_val_images/resolve/main/train_val_images.zip'
+        textvqa_extract_to = os.path.join(images_root, 'textvqa')
+        os.makedirs(textvqa_extract_to, exist_ok=True)
+        if not os.path.exists(textvqa_extract_to) or len(os.listdir(textvqa_extract_to)) == 0:
+            print('Downloading and extracting TextVQA dataset...')
+            download_and_extract_zip_hf_transfer(textvqa_url, textvqa_extract_to, zip_filename="textvqa_temp.zip")
+            print('TextVQA dataset downloaded and extracted.')
+
+    download_tasks.append(download_textvqa)
 
     # 5. Visual Genome Dataset
-    vg_urls = [
-        # 'https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip',
-        'https://huggingface.co/datasets/BoyangZ/VisualGenome_VG_100K_1_and_2/resolve/main/images.zip',
-        # 'https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip'
-        'https://huggingface.co/datasets/BoyangZ/VisualGenome_VG_100K_1_and_2/resolve/main/images2.zip'
-    ]
-    vg_extract_to = os.path.join(images_root, 'vg')
-    os.makedirs(vg_extract_to, exist_ok=True)
-    for vg_url in vg_urls:
-        if not os.path.exists(vg_extract_to) or len(os.listdir(vg_extract_to)) < 2:
-            download_and_extract_zip_hf_transfer(vg_url, vg_extract_to)
+    def download_vg():
+        print('Starting VG download')
+        vg_urls = [
+            'https://huggingface.co/datasets/BoyangZ/VisualGenome_VG_100K_1_and_2/resolve/main/images.zip',
+            'https://huggingface.co/datasets/BoyangZ/VisualGenome_VG_100K_1_and_2/resolve/main/images2.zip'
+        ]
+        vg_extract_to = os.path.join(images_root, 'vg')
+        os.makedirs(vg_extract_to, exist_ok=True)
+        for vg_url in vg_urls:
+            if not os.path.exists(vg_extract_to) or len(os.listdir(vg_extract_to)) < 2:
+                print(f'Downloading and extracting Visual Genome dataset from {vg_url}...')
+                download_and_extract_zip_hf_transfer(vg_url, vg_extract_to, zip_filename="vg_temp.zip")
+                print(f'Visual Genome dataset from {vg_url} downloaded and extracted.')
+
+    download_tasks.append(download_vg)
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        json_future = executor.submit(download_json)
+
+        dataset_futures = {executor.submit(task): task.__name__ for task in download_tasks}
+
+        json_future.result()
+
+        for future in as_completed(dataset_futures):
+            task_name = dataset_futures[future]
+            try:
+                future.result()
+            except Exception as e:
+                print(f'Error in {task_name}: {e}')
 
     print('\nAll datasets have been downloaded and organized successfully.')
     
@@ -231,7 +248,8 @@ def coco_data_test():
     os.makedirs(coco_extract_to, exist_ok=True)
     # if not os.path.exists(coco_extract_to) or len(os.listdir(coco_extract_to)) == 0:
     download_and_extract_zip_hf_transfer(coco_url, coco_extract_to, zip_filename='train2017.zip')
-     
+
+    
     
 if __name__ == '__main__':
     fire.Fire({
