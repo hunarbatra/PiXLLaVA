@@ -746,7 +746,7 @@ class DataCollatorForSupervisedDataset(object):
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         
-        print(f"self.tokenizer.pad_token_id: {self.tokenizer.pad_token_id}")
+        #print(f"self.tokenizer.pad_token_id: {self.tokenizer.pad_token_id}")
         
         input_ids, labels = tuple([instance[key] for instance in instances]
                                   for key in ("input_ids", "labels"))
