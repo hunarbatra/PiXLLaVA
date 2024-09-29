@@ -1,4 +1,4 @@
-# PiXLLaVA: 
+# PiXLLaVA: Interleaved object-centric vision-text alignment for improving MLLMs
 
 ## Add .env file:
 ```
