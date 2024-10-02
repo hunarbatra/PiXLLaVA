@@ -231,7 +231,7 @@ def upload_to_hf(data_type='pretrain', custom_file_path='', repo_id='hunarbatra/
         
     api = HfApi()
     
-    repo_path = data_path.split('/')[-1].replace('.json', '')
+    repo_path = data_path.split('/')[-1]
     
     api.upload_file(
         path_or_fileobj=data_path,
