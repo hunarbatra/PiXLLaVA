@@ -677,6 +677,9 @@ class LazySupervisedDataset(Dataset):
                 copy.deepcopy([e["conversations"] for e in sources]),
                 self.data_args)
             
+            # get 'bboxes' data for images
+            bboxes = self.list_data_dict[i]['bboxes']
+            
             if self.data_args.image_aspect_ratio == 'pad':
                 def expand2square(pil_img, background_color):
                     width, height = pil_img.size
@@ -690,13 +693,9 @@ class LazySupervisedDataset(Dataset):
                         result = Image.new(pil_img.mode, (height, height), background_color)
                         result.paste(pil_img, ((height - width) // 2, 0))
                         return result
-            # else if self.data_args.image_aspect_ratio == 'square': then we apply the image_processor which happens by default further in the data collator
 
                 image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            #     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-            # else: # self.data_args.image_aspect_ratio == 'square' - default case
-            #     # preprocesses image to 384x384 size for the img encoder
-            #     image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            # else if self.data_args.image_aspect_ratio == 'square': then we apply the image_processor which happens by default further in the data collator
             
         else: # if text only input:
             sources = copy.deepcopy([e["conversations"] for e in sources])
@@ -713,21 +712,16 @@ class LazySupervisedDataset(Dataset):
         # image exist in the data, add up the PIL image to data_dict
         if 'image' in self.list_data_dict[i]:
             data_dict['image'] = image
-        elif self.data_args.is_multimodal:
+            if 'bboxes' in self.list_data_dict[i]:
+                data_dict['bboxes'] = bboxes
+        elif self.data_args.is_multimodal: # default: True
             # image does not exist in the data, but the model is multimodal
+            # for text only inputs, add up a dummpy image tensor
             try:
                 crop_size = self.data_args.image_processor.crop_size
             except:
                 crop_size = self.data_args.image_processor.size
             data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
-        
-        # elif self.data_args.is_multimodal:
-        #     # image does not exist in the data, but the model is multimodal
-        #     try:
-        #         crop_size = self.data_args.image_processor.crop_size
-        #     except:
-        #         crop_size = self.data_args.image_processor.size
-        #     data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
             
         return data_dict
 
@@ -745,9 +739,6 @@ class DataCollatorForSupervisedDataset(object):
         self.detr_processor = detr_processor
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        
-        #print(f"self.tokenizer.pad_token_id: {self.tokenizer.pad_token_id}")
-        
         input_ids, labels = tuple([instance[key] for instance in instances]
                                   for key in ("input_ids", "labels"))
         # temp_pad_token_id = 51000
@@ -776,62 +767,50 @@ class DataCollatorForSupervisedDataset(object):
             images_pil = [img for img in images if type(img) == Image.Image]
             images_tensor_zeros_idx = [idx for idx, img in enumerate(images) if type(img) != Image.Image]
             
+            bboxes = []
+            if 'bboxes' in instances[0]:
+                bboxes = [instance['bboxes'] for instance in instances] # list of list of bbox lists
+            
             num_images_per_sample = []
             images_per_sample = [] 
             bboxes_per_sample = []
             
-            # process images through DETR in batch
-            detr_inputs = self.detr_processor(images=images_pil, return_tensors="pt").to(self.detr_model.device)
+            max_crops = 10
             
-            with torch.no_grad():
-                detr_outputs = self.detr_model(**detr_inputs)
-                
-            # get bounding boxes and scores from detr outputs
-            target_sizes = torch.tensor([img.size[::-1] for img in images_pil]) # prepare target sizes for all images
-            results = self.detr_processor.post_process_object_detection(detr_outputs, target_sizes=target_sizes) # detection threshold=0.7
-            
-            for i, (image, result) in enumerate(zip(images_pil, results)):
+            for i, (image, bbox) in enumerate(zip(images_pil, bboxes)):
                 curr_img_crops = [image] # original image
                 # compute original image bbox coords
                 w, h = image.size
                 curr_bboxes = [[0.5, 0.5, 1.0, 1.0]] # [[w/2/w, h/2/h, w/w, h/h]] -> [x_center, y_center, width, height] bbox coords for the original img with normalization - these bbox coords do not end up being used for the original image
-                
-                if len(result['scores']) > 0:
-                    sorted_indices = torch.argsort(result['scores'], descending=True)
-                    sorted_scores = result['scores'][sorted_indices]
-                    sorted_labels = result['labels'][sorted_indices]
-                    sorted_boxes = result['boxes'][sorted_indices]
+                                               
+                for box in bbox: 
+                    # box: x1, y1, x2, y2
+                    # convert bbox coords to [x_center, y_center, w, h], and normalize to [0, 1] based on the original image size
+                    if len(box) != 4:
+                        continue
+                    x1, y1, x2, y2 = box
                     
-                    max_crops = 9
-            
-                    for score, label, box in zip(sorted_scores, sorted_labels, sorted_boxes):
-                        # convert bbox coords to [x_center, y_center, w, h], and normalize to [0, 1] based on the original image size
-                        box = box.tolist()
-                        x1, y1, x2, y2 = box
-                        
-                        # convert to normalized [x_center, y_center, width, height]
-                        x_center = (x1 + x2) / 2 / w
-                        y_center = (y1 + y2) / 2 / h
-                        width = (x2 - x1) / w
-                        height = (y2 - y1) / h
-                        
-                        bbox = [x_center, y_center, width, height]
-                        curr_bboxes.append(bbox)
-                        
-                        # crop the image
-                        crop_box = [int(x1), int(y1), int(x2), int(y2)]
-                        image_crop = image.crop(crop_box)
-                        curr_img_crops.append(image_crop)
-                        
-                        if len(curr_img_crops) == max_crops + 1: 
-                            # print(f"Truncating image crops to {max_crops} crops. Remaining crops with lower scores not being processed: {len(curr_img_crops) - max_crops}")
-                            break
+                    # convert to normalized [x_center, y_center, width, height]
+                    x_center = (x1 + x2) / 2 / w
+                    y_center = (y1 + y2) / 2 / h
+                    width = (x2 - x1) / w
+                    height = (y2 - y1) / h
+                    
+                    bbox = [x_center, y_center, width, height]
+                    curr_bboxes.append(bbox)
+                    
+                    # crop the image
+                    crop_box = [int(x1), int(y1), int(x2), int(y2)]
+                    image_crop = image.crop(crop_box)
+                    curr_img_crops.append(image_crop)
+                    
+                    if len(curr_img_crops) == max_crops + 1: 
+                        # print(f"Truncating image crops to {max_crops} crops. Remaining crops with lower scores not being processed: {len(curr_img_crops) - max_crops}")
+                        break
                     
                 images_per_sample.append(curr_img_crops)
                 bboxes_per_sample.append(torch.tensor(curr_bboxes))
                 num_images_per_sample.append(len(curr_img_crops)) # main image + crops count
-                
-            # print(f"Average number of images per sample for the current Batch: {sum(num_images_per_sample) / len(num_images_per_sample)}")
                 
             # flatten the lists
             flat_images = [img for imgs in images_per_sample for img in imgs]
@@ -847,16 +826,9 @@ class DataCollatorForSupervisedDataset(object):
                 images_per_sample_tensors.append(images_tensor[idx:idx + num_images])
                 idx += num_images
                 
-            # add up the torch_zeros_idx to the images_per_sample at torch_zeros_idx index with the value in images[torch_zeros_idx]
-            added_zeros_tensor_ctr = 0
+            # add up the torch_zeros_idx to the images_per_sample at torch_zeros_idx index with the value in images[torch_zeros_idx] - this is to handle text only inputs
             for idx_to_add in images_tensor_zeros_idx:
-                images_per_sample.insert(idx_to_add+added_zeros_tensor_ctr, images[idx_to_add])
-                added_zeros_tensor_ctr += 1
-                
-            # if all(x is not None and x.shape == images[0].shape for x in images):
-            #     batch['images'] = torch.stack(images)
-            # else:
-            #     batch['images'] = images
+                images_per_sample.insert(idx_to_add, images[idx_to_add])
             
             batch['images'] = images_per_sample_tensors # list of image preprocessed tensors per sample
             batch['bbox_coords'] = bboxes_per_sample # list of normalised bbox coords tensors per sample 
