@@ -2,6 +2,7 @@
 
 # install packages and load in editable mode
 pip install -e .
+pip install flash-attn --no-build-isolation --no-cache-dir
 
 # download data
 python download_data.py pretrain_data
