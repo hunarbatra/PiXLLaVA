@@ -27,7 +27,7 @@ mkdir -p $outputdir
 python mipha/train/convert_model2base_mipha.py \
     --model_name_or_path $base_model_dir \
     --version plain \
-    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k.json \
+    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_detr.json \
     --image_folder ./data/llava-pretrain/images \
     --vision_tower $vision_encoder \
     --mm_projector_type mlp2x_gelu \
