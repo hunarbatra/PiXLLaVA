@@ -10,7 +10,7 @@ vision_encoder=./ckpts/siglip-so400m-patch14-384
 # outputdir=./ckpts/checkpoints-siglip/gemma_2b/MiphaGemma-v0-2b-finetune
 
 ## phi2
-model_name=PiXLLaVAPhi2-v0-3b
+model_name=PiXLLaVAPhi2-v1-3b
 model_dir=./ckpts/checkpoints-siglip/phi_2/${model_name}-pretrain
 outputdir=./ckpts/checkpoints-siglip/phi_2/${model_name}-finetune
 
@@ -28,11 +28,13 @@ cp $vision_encoder/preprocessor_config.json  $outputdir
 
 # we set model_max_length to 8192, same as pretraining and also since we have multiple images per sample
 
+# --lora_enable True --lora_r 128 --lora_alpha 256 \
+
 deepspeed --master_port 29600 mipha/train/train.py \
     --deepspeed ./scripts/zero3.json \
     --model_name_or_path $model_dir \
     --version v0 \
-    --data_path ./data/llava-finetune/llava_v1_5_mix665k.json \
+    --data_path ./data/llava-finetune/llava_v1_5_mix665k_detr.json \
     --image_folder ./data/llava-finetune/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower False \
@@ -44,7 +46,7 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 2 \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \
@@ -57,7 +59,7 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
     --tf32 True \
-    --model_max_length 8192 \
+    --model_max_length 4096 \
     --gradient_checkpointing True \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
