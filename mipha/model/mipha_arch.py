@@ -51,7 +51,27 @@ class MiphaMetaModel:
         if type(vision_tower) is list:
             vision_tower = vision_tower[0]
         return vision_tower
-
+    
+    def meanPooling2D(self, x):
+        batch_size, num_positions, hidden_size = x.size()
+        spatial_dim = int(num_positions ** 0.5) # 27x27 for 729
+        
+        # reshape to [batch_size, 27, 27, 1152 (hidden_size)]
+        x_reshaped = x.view(batch_size, spatial_dim, spatial_dim, hidden_size)
+        
+        # apply 2D pooling with kernel_size=2 and stride=2 to halve the spatial dimensions
+        # mean pooling will reduce [27, 27] to [13, 13]
+        pooling = nn.AvgPool2d(kernel_size=2, stride=2)
+        x_pooled = pooling(x_reshaped.permute(0, 3, 1, 2)) # permute to [batch_size, hidden_size, 13, 13] to get [n, channels, h, w] for 2D Avg Pooling
+        
+        # reshape back to [batch_size, 169, hidden_size] after pooling
+        new_spatial_dim = x_pooled.size(2)
+        x_pooled = x_pooled.permute(0, 2, 3, 1).view(batch_size, new_spatial_dim * new_spatial_dim, hidden_size)
+        
+        # print(f"x_pooled.shape: {x_pooled.shape}")
+        
+        return x_pooled
+    
 
 class MiphaMetaForCausalLM(ABC):
 
@@ -63,18 +83,12 @@ class MiphaMetaForCausalLM(ABC):
         return self.get_model().get_vision_tower()
 
     def encode_images(self, images, bbox_coords_per_sample):
-        # image_features = self.get_model().get_vision_tower()(images)
-        # image_features = self.get_model().mm_projector(image_features)
-        # return image_features
-
         # images: now a List of stacked tensors per sample, each element in the list of shape [num_images, channels, height, width]
         # bbox_coords_per_sample: now a List of stacked tensors per sample, each of shape [num_images-1, 4] (where the first image doesn't have bbox coords)
         
         # flatten images and encode them
         flat_images = torch.cat(images, dim=0) # shape: [total_num_images, channels, height, width]
-        # print(f"flat_images.shape: {flat_images.shape}")
-        flat_image_features = self.get_model().get_vision_tower()(flat_images) # shape: [total_num_images, 1, hidden_dim]
-        # print(f"flat_image_features.shape: {flat_image_features.shape}")
+        flat_image_features = self.get_model().get_vision_tower()(flat_images) # shape: [total_num_images, 729, 1152]
         
         # split image features back into per-sample lists
         image_features_per_sample = []
@@ -88,35 +102,28 @@ class MiphaMetaForCausalLM(ABC):
         for i, (img_feats, bbox_coords) in enumerate(zip(image_features_per_sample, bbox_coords_per_sample)):
             if bbox_coords.shape[0] > 1: # add bbox embeddings to object crops (excluding the original image)
                 # apply bbox embedding
-                # print(f"before adding bbox: img_feats.shape: {img_feats.shape}")
-                bbox_embeddings = self.get_model().bbox_embedder(bbox_coords[1:].to(img_feats.device)) # shape: [num_crops, 1, hidden_dim]
-                # print(f"model config: {self.get_model().config}")
-                # print(f"vision_model config: {self.get_model().get_vision_tower().config}")
-                bbox_embeddings = bbox_embeddings.view(bbox_embeddings.shape[0], 729, 1152) # shape: [num_crops, hidden_dim1, hidden_dim2] # TODO: add dynamic dim here
-                # print(f"bbox_embeddings.shape: {bbox_embeddings.shape}")
-                # print(f"img_feats.shape: {img_feats.shape}")
-                # print(f"img_feats[1:].shape: {img_feats[1:].shape}")
-                img_feats[1:] += bbox_embeddings # img_feats shape is: [num_images, 1, hidden_dim]
-                # print(f"after adding bbox: img_feats.shape: {img_feats.shape}")
+                bbox_embeddings = self.get_model().bbox_embedder(bbox_coords[1:].to(img_feats.device)) # shape: [num_crops, 729, 1152]
+                bbox_embeddings = bbox_embeddings.view(bbox_embeddings.shape[0], 729, 1152) # shape: [num_crops, 729, 1152] # TODO: add dynamic dim here
+                img_feats[1:] += bbox_embeddings # img_feats shape is: [num_images, 729, 1152]
             
         # flatten image features back into a single tensor per sample
-        flat_features = torch.cat(image_features_per_sample, dim=0) # shape of each element in the list: [total_num_images, 1, hidden_dim]
-        # print(f"flat_features.shape: {flat_features.shape}")
+        flat_features = torch.cat(image_features_per_sample, dim=0) # shape of each element in the list: [total_num_images, 729, 1152]
         # pass flattened features through the projector together
-        flat_projected_features = self.get_model().mm_projector(flat_features) # shape of each element in the list: [total_num_images, 1, hidden_dim]
+        flat_projected_features = self.get_model().mm_projector(flat_features) # shape of each element in the list: [total_num_images, 729, 2560]
         # print(f"flat_projected_features.shape: {flat_projected_features.shape}")
+        
+        flat_pooled_features = self.get_model().meanPooling2D(flat_projected_features) # shape of each element in the list: [total_num_images, 169, 2560] down from [total_num_images, 729, 2560]
+        # print(f"flat_pooled_features.shape: {flat_pooled_features.shape}")
         
         # split projected features back into per-sample lists i.e list of stacked tensors per sample
         projected_features_per_sample = []
         idx = 0
         for img_tensor in images:
             num_images = img_tensor.shape[0]
-            projected_features_per_sample.append(flat_projected_features[idx:idx + num_images])
+            projected_features_per_sample.append(flat_pooled_features[idx:idx + num_images])
             idx += num_images
-            
-        # print(f"projected_features_per_sample: {projected_features_per_sample}")
         
-        return projected_features_per_sample # list of tensors per sample, each element in the list is a tensor of shape [num_images, 1, hidden_dim] i.e stacked tensors per sample
+        return projected_features_per_sample # list of tensors per sample, each element in the list is a tensor of shape [num_images, 169, 1152] i.e stacked tensors per sample
 
     def prepare_inputs_labels_for_multimodal(
             self, input_ids, attention_mask, past_key_values, labels, images, bbox_coords_per_sample
