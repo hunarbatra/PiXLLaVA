@@ -71,17 +71,17 @@ def download_and_extract_zip_hf_transfer(url, extract_to, zip_filename='temp.zip
     os.remove(zip_path)
     print(f'{os.path.basename(zip_path)} extracted to {extract_to}.')
     
-def download_pretrain_dataset():
+def download_pretrain_dataset(json_only=False):
     # dataset = load_dataset("liuhaotian/LLaVA-Pretrain")
     # dataset.save_to_disk("data/")
     
     os.makedirs('data/llava-pretrain', exist_ok=True)
     # URLs of the files to download
-    json_url = 'https://huggingface.co/datasets/liuhaotian/LLaVA-Pretrain/resolve/main/blip_laion_cc_sbu_558k.json'
+    json_url = 'https://huggingface.co/datasets/hunarbatra/llava-pretrain-558k-object-coords/resolve/main/blip_laion_cc_sbu_558k_detr.json'
     images_zip_url = 'https://huggingface.co/datasets/liuhaotian/LLaVA-Pretrain/resolve/main/images.zip'
 
     # Local file paths
-    json_file_path = 'data/llava-pretrain/blip_laion_cc_sbu_558k.json'
+    json_file_path = 'data/llava-pretrain/blip_laion_cc_sbu_558k_detr.json'
     images_zip_path = 'data/llava-pretrain/images.zip'
     images_extract_path = 'data/llava-pretrain/images'
     
@@ -91,6 +91,9 @@ def download_pretrain_dataset():
     if not os.path.exists(json_file_path):
         download_file(json_url, json_file_path, headers=headers)
     print('JSON file downloaded to:', json_file_path)
+    
+    if json_only:
+        return
 
     print('Downloading images.zip file...')
     if not os.path.exists(images_extract_path) and not os.path.exists(images_zip_path):
@@ -137,14 +140,14 @@ def download_ocr_vqa_images(data, ocr_vqa_images_dir):
             if error:
                 print(error)
 
-def download_finetune_dataset():
+def download_finetune_dataset(json_only=False):
     os.makedirs('data/llava-finetune', exist_ok=True)
     images_root = 'data/llava-finetune/images'
     os.makedirs(images_root, exist_ok=True)
 
     # URLs of the files to download
-    json_url = 'https://huggingface.co/datasets/hunarbatra/LLaVA-finetune665k/resolve/main/llava_v1_5_mix665k.json'
-    json_file_path = 'data/llava-finetune/llava_v1_5_mix665k.json'
+    json_url = 'https://huggingface.co/datasets/hunarbatra/llava-pretrain-558k-object-coords/resolve/main/blip_laion_cc_sbu_558k_detr.json'
+    json_file_path = 'data/llava-finetune/llava_v1_5_mix665k_detr.json'
 
     headers = {'Authorization': f'Bearer {os.getenv("HF_TOKEN")}'}
 
@@ -153,6 +156,11 @@ def download_finetune_dataset():
         if not os.path.exists(json_file_path):
             download_file(json_url, json_file_path, headers=headers)
         print('JSON file downloaded to:', json_file_path)
+        
+    download_json()
+    
+    if json_only:
+        return
 
     download_tasks = []
 
@@ -226,11 +234,7 @@ def download_finetune_dataset():
     download_tasks.append(download_vg)
 
     with ThreadPoolExecutor(max_workers=10) as executor:
-        json_future = executor.submit(download_json)
-
         dataset_futures = {executor.submit(task): task.__name__ for task in download_tasks}
-
-        json_future.result()
 
         for future in as_completed(dataset_futures):
             task_name = dataset_futures[future]
