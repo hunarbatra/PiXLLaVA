@@ -68,7 +68,17 @@ class DetrData:
         return images_bboxes
 
 
-def preprocess_detr_data(data_type='pretrain', custom_file_path='', batch_size=64, resume=False, gpu_index=0, total_gpus=1):
+def preprocess_detr_data(
+    data_type='pretrain', 
+    custom_file_path='', 
+    custom_img_path='',
+    batch_size=64, 
+    resume=False, 
+    gpu_index=0, 
+    total_gpus=1,
+    custom_start_idx=None,
+    custom_start_file_idx=None,
+):
     device = torch.device(f"cuda:{gpu_index}" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -89,14 +99,23 @@ def preprocess_detr_data(data_type='pretrain', custom_file_path='', batch_size=6
                 'Please provide either "pretrain", "finetune", or a "custom_file_path".'.format(data_type)
             )
     
-    images_root = f'data/llava-{data_type}/images'
-    json_data_path = data_path.replace('.json', f'_detr_{gpu_index}.json')
-    data_path = json_data_path if resume else data_path
+    images_root = f'data/llava-{data_type}/images' if not custom_img_path else custom_img_path
 
     # Load the DataFrame
     process_df = pd.read_json(data_path)
+    
+    json_data_path = data_path.replace('.json', f'_detr_{gpu_index}.json')
+    
+    if custom_start_idx is not None:
+        process_df = process_df.iloc[custom_start_idx:].reset_index(drop=True)
+        print(f'Custom start index: {custom_start_idx}')
+        
+    if custom_start_file_idx is not None:
+        json_data_path = data_path.replace('.json', f'_detr_{custom_start_file_idx}.json')
+        print(f'Custom start file index: {custom_start_file_idx}')
+        
     if 'bboxes' not in process_df.columns:
-        process_df['bboxes'] = None
+        process_df['bboxes'] = []
         
     # split the data across GPUs
     total_rows = len(process_df)
@@ -111,16 +130,14 @@ def preprocess_detr_data(data_type='pretrain', custom_file_path='', batch_size=6
     # Determine the starting index for resuming
     start_idx = 0
     if resume:
-        mask = (subset_df['image'].notna()) & (subset_df['bboxes'].isnull())
+        mask = (subset_df['image'].isnull()) & (subset_df['bboxes'].isnull())
         if mask.any():
             start_idx = mask.idxmax()
         else:
             print(f"All images have been processed for GPU {gpu_index}. Nothing to resume.")
             return
         print(f'Resuming from row index for GPU {gpu_index}: {start_idx}')
-
-    # Select the subset of the DataFrame to process
-    if resume:
+        # Select the subset of the DataFrame to process
         subset_df = subset_df.iloc[start_idx:].reset_index(drop=True)
 
     detr_model = DetrData(device)
@@ -132,13 +149,19 @@ def preprocess_detr_data(data_type='pretrain', custom_file_path='', batch_size=6
             batch_df = subset_df.iloc[i:i+batch_size].copy()
             images = []
             for _, row in batch_df.iterrows():
-                image_path = os.path.join(images_root, row['image']) if row['image'] else None
-                if image_path and os.path.exists(image_path):
-                    try:
-                        image = Image.open(image_path).convert("RGB")
-                    except Exception as e:
-                        logging.error(f"Error loading image {image_path}: {e}")
-                        image = None
+                if row['image']:
+                    image_path = os.path.join(images_root, row['image'])
+                else: 
+                    None
+                if image_path:
+                    if os.path.exists(image_path):
+                        try:
+                            image = Image.open(image_path).convert("RGB")
+                        except Exception as e:
+                            print(f"Error loading image {image_path}: {e}")
+                            image = None
+                    else:
+                        raise FileNotFoundError(f'Image file {image_path} does not exist')
                 else:
                     image = None
                 images.append(image)
@@ -146,7 +169,7 @@ def preprocess_detr_data(data_type='pretrain', custom_file_path='', batch_size=6
             try:
                 bboxes = detr_model.process_batch(images)
             except Exception as e:
-                logging.error(f"Error processing batch {i//batch_size}: {e}")
+                print(f"Error processing batch through DETR {i//batch_size}: {e}")
                 bboxes = [[] for _ in images]  # Assign empty lists if processing fails
 
             batch_df['bboxes'] = bboxes
@@ -160,7 +183,7 @@ def preprocess_detr_data(data_type='pretrain', custom_file_path='', batch_size=6
             pbar.update(len(batch_df))
     
 
-def merge_detr_json_files(data_type='pretrain', custom_file_path='', total_gpus=1):
+def merge_detr_json_files(data_type='pretrain', custom_file_path='', total_files=1):
     if data_type == 'pretrain':
         data_path = 'data/llava-pretrain/blip_laion_cc_sbu_558k.json'
     elif data_type == 'finetune':
@@ -174,7 +197,7 @@ def merge_detr_json_files(data_type='pretrain', custom_file_path='', total_gpus=
         else:
             raise ValueError(f'Invalid data_type: {data_type} or custom_file_path not defined. Please provide either "pretrain", "finetune", or a "custom_file_path".')
     
-    for i in range(total_gpus):
+    for i in range(total_files):
         json_file_path = data_path.replace('.json', f'_detr_{i}.json')
         if not os.path.exists(json_file_path):
             print(f"Warning: JSON file {json_file_path} does not exist. Skipping.")
