@@ -30,7 +30,7 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $model_dir \
     --version plain \
-    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_detr_10.json \
+    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_detr.json \
     --image_folder ./data/llava-pretrain/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower True \
@@ -40,9 +40,9 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 32 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 32 \
+    --gradient_accumulation_steps 2 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 100 \
