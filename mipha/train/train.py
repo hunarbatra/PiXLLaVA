@@ -1065,7 +1065,6 @@ def train():
     repo_name = training_args.output_dir.split('/')[-1]
     training_args.hub_model_id = repo_name
     # training_args.push_to_hub = True
-    print(f'Push to Hub is set to: {training_args.push_to_hub}')
     training_args.hub_private_repo = True
     
     trainer = MiphaTrainer(model=model,
