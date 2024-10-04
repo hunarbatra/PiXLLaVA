@@ -45,7 +45,7 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --gradient_accumulation_steps 2 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 24000 \
+    --save_steps 100 \
     --save_total_limit 1 \
     --learning_rate 1e-3 \
     --weight_decay 0. \
