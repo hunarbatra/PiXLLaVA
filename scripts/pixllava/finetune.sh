@@ -17,7 +17,7 @@ outputdir=./ckpts/checkpoints-siglip/phi_2/${model_name}-finetune
 # create output dir
 mkdir -p $outputdir
 
-cp $vision_encoder/preprocessor_config.json  $outputdir
+cp $vision_encoder/preprocessor_config.json $outputdir
 
 ## Note: to run on certain devices do: deepspeed --master_port XXX --include localhost:0,2 ...
 
@@ -65,3 +65,5 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --lazy_preprocess True \
     --report_to wandb \
     --push_to_hub False
+
+cp $vision_encoder/preprocessor_config.json $outputdir/checkpoint-1
