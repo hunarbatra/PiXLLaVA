@@ -146,7 +146,7 @@ def download_finetune_dataset(json_only=False):
     os.makedirs(images_root, exist_ok=True)
 
     # URLs of the files to download
-    json_url = 'https://huggingface.co/datasets/hunarbatra/llava-pretrain-558k-object-coords/resolve/main/blip_laion_cc_sbu_558k_detr.json'
+    json_url = 'https://huggingface.co/datasets/hunarbatra/llava-finetune-665k-object-coords/resolve/main/llava_v1_5_mix665k_detr.json'
     json_file_path = 'data/llava-finetune/llava_v1_5_mix665k_detr.json'
 
     headers = {'Authorization': f'Bearer {os.getenv("HF_TOKEN")}'}
