@@ -68,8 +68,6 @@ class MiphaMetaModel:
         new_spatial_dim = x_pooled.size(2)
         x_pooled = x_pooled.permute(0, 2, 3, 1).view(batch_size, new_spatial_dim * new_spatial_dim, hidden_size)
         
-        # print(f"x_pooled.shape: {x_pooled.shape}")
-        
         return x_pooled
     
 
@@ -110,10 +108,8 @@ class MiphaMetaForCausalLM(ABC):
         flat_features = torch.cat(image_features_per_sample, dim=0) # shape of each element in the list: [total_num_images, 729, 1152]
         # pass flattened features through the projector together
         flat_projected_features = self.get_model().mm_projector(flat_features) # shape of each element in the list: [total_num_images, 729, 2560]
-        # print(f"flat_projected_features.shape: {flat_projected_features.shape}")
         
         flat_pooled_features = self.get_model().meanPooling2D(flat_projected_features) # shape of each element in the list: [total_num_images, 169, 2560] down from [total_num_images, 729, 2560]
-        # print(f"flat_pooled_features.shape: {flat_pooled_features.shape}")
         
         # split projected features back into per-sample lists i.e list of stacked tensors per sample
         projected_features_per_sample = []
@@ -136,15 +132,8 @@ class MiphaMetaForCausalLM(ABC):
                                             dtype=attention_mask.dtype, device=attention_mask.device)
             return input_ids, attention_mask, past_key_values, None, labels
             
-        # if type(images) is list or images.ndim == 5:
-        #     concat_images = torch.cat([image for image in images], dim=0)
-        #     image_features = self.encode_images(concat_images) # image encoder + passes through projector
-        #     split_sizes = [image.shape[0] for image in images]
-        #     image_features = torch.split(image_features, split_sizes, dim=0)
-        #     image_features = [x.flatten(0, 1) for x in image_features]
-        # else:
         image_features = self.encode_images(images, bbox_coords_per_sample)
-
+        
         new_input_embeds = []
         new_labels = [] if labels is not None else None
         cur_image_idx = 0
@@ -153,11 +142,15 @@ class MiphaMetaForCausalLM(ABC):
                 # multimodal LLM, but the current sample is not multimodal
                 # FIXME: this is a hacky fix, for deepspeed zero3 to work
                 half_len = cur_input_ids.shape[0] // 2
-                cur_image_features = image_features[cur_image_idx] # [num_images, 1, hidden_dim]
+                cur_image_features = image_features[cur_image_idx] # [num_images, 169, 2560]
                 num_images = cur_image_features.shape[0]
                 cur_input_embeds_1 = self.get_model().embed_tokens(cur_input_ids[:half_len])
                 cur_input_embeds_2 = self.get_model().embed_tokens(cur_input_ids[half_len:])
-                cur_input_embeds = torch.cat([cur_input_embeds_1, cur_image_features[0:0], cur_input_embeds_2], dim=0)
+                cur_new_input_embeds = []
+                cur_new_input_embeds.append(cur_input_embeds_1)
+                cur_new_input_embeds.extend([img_feat[0:0] for img_feat in cur_image_features])
+                cur_new_input_embeds.append(cur_input_embeds_2)
+                cur_input_embeds = torch.cat(cur_new_input_embeds, dim=0)
                 new_input_embeds.append(cur_input_embeds)
                 if labels is not None:
                     new_labels.append(labels[batch_idx])
@@ -240,10 +233,8 @@ class MiphaMetaForCausalLM(ABC):
                 new_labels.append(cur_new_labels)
 
         if any(x.shape != new_input_embeds[0].shape for x in new_input_embeds):
-            # print('inside padding function')
             # if any of the elements shape in inputs is not the same as the first element shape, then we need to pad the inputs to the same shape
             max_len = max(x.shape[0] for x in new_input_embeds) # get the max length of the input embeds
-            # print(f"max_len: {max_len}")
 
             new_input_embeds_align = []
             for cur_new_embed in new_input_embeds:
@@ -279,7 +270,6 @@ class MiphaMetaForCausalLM(ABC):
                 attention_mask = torch.stack(new_attention_mask, dim=0)
                 assert attention_mask.shape == new_labels.shape
         else:
-            # print('inside no padding function')
             new_input_embeds = torch.stack(new_input_embeds, dim=0)
             if labels is not None:
                 new_labels = torch.stack(new_labels, dim=0)
@@ -290,20 +280,6 @@ class MiphaMetaForCausalLM(ABC):
                     dtype=attention_mask.dtype, device=attention_mask.device)
                 attention_mask = torch.cat((new_attn_mask_pad_left, attention_mask), dim=1)
                 assert attention_mask.shape == new_input_embeds.shape[:2]
-                
-        # After preparing new_input_embeds and new_labels
-        # print(f"Batch {batch_idx}:")
-        # print(f"cur_input_ids shape: {cur_input_ids.shape}")
-        # print(f"cur_new_input_embeds shape: {cur_new_input_embeds.shape}, images len: {images[0].shape}")
-        # print(f"cur_new_labels shape: {cur_new_labels.shape}")
-
-        # print(f"new_input_embeds shape: {new_input_embeds.shape}")
-        # print(f"new_labels shape: {new_labels.shape}")
-        # print(f"new labels: {new_labels}")
-        # print(f"attention_mask shape: {attention_mask.shape}")
-        
-        # max_len = max(x.shape[0] for x in new_input_embeds) # get the max length of the input embeds
-        # print(f"max_len: {max_len}")
 
         return None, attention_mask, past_key_values, new_input_embeds, new_labels
 
