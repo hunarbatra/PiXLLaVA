@@ -649,7 +649,7 @@ class LazySupervisedDataset(Dataset):
     def lengths(self):
         length_list = []
         for sample in self.list_data_dict:
-            img_tokens = 128 if 'image' in sample else 0
+            img_tokens = 128 if 'image' in sample and sample['image'] is not None else 0
             length_list.append(sum(len(conv['value'].split()) for conv in sample['conversations']) + img_tokens)
         return length_list
 
@@ -658,16 +658,19 @@ class LazySupervisedDataset(Dataset):
         length_list = []
         for sample in self.list_data_dict:
             cur_len = sum(len(conv['value'].split()) for conv in sample['conversations'])
-            cur_len = cur_len if 'image' in sample else -cur_len
+            cur_len = cur_len if 'image' in sample and sample['image'] is not None else -cur_len
             length_list.append(cur_len)
         return length_list
+    
+    def __getitem__(self, i):
+        return self._get_single_item(i)  
 
-    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+    def _get_single_item(self, i) -> Dict[str, torch.Tensor]:
         sources = self.list_data_dict[i]
         if isinstance(i, int):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
-        if 'image' in sources[0]:
+        if 'image' in sources[0] and self.list_data_dict[i]['image'] is not None:
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
             processor = self.data_args.image_processor
@@ -697,7 +700,9 @@ class LazySupervisedDataset(Dataset):
                 image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
             # else if self.data_args.image_aspect_ratio == 'square': then we apply the image_processor which happens by default further in the data collator
             
-        else: # if text only input:
+        else: # if text only input i.e 'image' == None
+            image = None
+            bboxes = []
             sources = copy.deepcopy([e["conversations"] for e in sources])
             
         data_dict = preprocess(
@@ -710,7 +715,7 @@ class LazySupervisedDataset(Dataset):
                              labels=data_dict["labels"][0])
 
         # image exist in the data, add up the PIL image to data_dict
-        if 'image' in self.list_data_dict[i]:
+        if 'image' in self.list_data_dict[i] and self.list_data_dict[i]['image'] is not None:
             data_dict['image'] = image
             if 'bboxes' in self.list_data_dict[i]:
                 data_dict['bboxes'] = bboxes
@@ -722,6 +727,10 @@ class LazySupervisedDataset(Dataset):
             except:
                 crop_size = self.data_args.image_processor.size
             data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
+            data_dict['bboxes'] = [] # set bboxes to empty list
+            
+        data_dict['id'] = self.list_data_dict[i]['id']
+        data_dict['is_multimodal'] = ('image' in self.list_data_dict[i] and self.list_data_dict[i]['image'] is not None)
             
         return data_dict
 
@@ -732,13 +741,12 @@ class DataCollatorForSupervisedDataset(object):
 
     tokenizer: transformers.PreTrainedTokenizer
     
-    def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments, detr_model: DetrForObjectDetection, detr_processor: DetrImageProcessor):
+    def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments):
         self.tokenizer = tokenizer
         self.data_args = data_args
-        self.detr_model = detr_model
-        self.detr_processor = detr_processor
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
+        # print(f'instances: {instances}')
         input_ids, labels = tuple([instance[key] for instance in instances]
                                   for key in ("input_ids", "labels"))
         # temp_pad_token_id = 51000
@@ -761,84 +769,73 @@ class DataCollatorForSupervisedDataset(object):
             # attention_mask=input_ids.ne(temp_pad_token_id),
         )
 
-        if 'image' in instances[0]:
-            images = [instance['image'] for instance in instances] # PIL Images or torch.zeroes(3, 384, 384) if text only input
-            
-            images_pil = [img for img in images if type(img) == Image.Image]
-            images_tensor_zeros_idx = [idx for idx, img in enumerate(images) if type(img) != Image.Image]
-            
-            bboxes = []
-            if 'bboxes' in instances[0]:
-                bboxes = [instance['bboxes'] for instance in instances] # list of list of bbox lists
-            
-            num_images_per_sample = []
-            images_per_sample = [] 
-            bboxes_per_sample = []
-            
-            max_crops = 10
-            
-            for i, (image, bbox) in enumerate(zip(images_pil, bboxes)):
-                curr_img_crops = [image] # original image
-                # compute original image bbox coords
-                w, h = image.size
-                curr_bboxes = [[0.5, 0.5, 1.0, 1.0]] # [[w/2/w, h/2/h, w/w, h/h]] -> [x_center, y_center, width, height] bbox coords for the original img with normalization - these bbox coords do not end up being used for the original image
-                                               
-                for box in bbox: 
-                    # box: x1, y1, x2, y2
-                    # convert bbox coords to [x_center, y_center, w, h], and normalize to [0, 1] based on the original image size
-                    if len(box) != 4:
-                        continue
-                    x1, y1, x2, y2 = box
-                    
-                    # convert to normalized [x_center, y_center, width, height]
-                    x_center = (x1 + x2) / 2 / w
-                    y_center = (y1 + y2) / 2 / h
-                    width = (x2 - x1) / w
-                    height = (y2 - y1) / h
-                    
-                    bbox = [x_center, y_center, width, height]
-                    curr_bboxes.append(bbox)
-                    
-                    # crop the image
-                    crop_box = [int(x1), int(y1), int(x2), int(y2)]
-                    image_crop = image.crop(crop_box)
-                    curr_img_crops.append(image_crop)
-                    
-                    if len(curr_img_crops) == max_crops + 1: 
-                        # print(f"Truncating image crops to {max_crops} crops. Remaining crops with lower scores not being processed: {len(curr_img_crops) - max_crops}")
-                        break
-                    
+        # Prepare images and bounding boxes for all instances
+        try:
+            crop_size = self.data_args.image_processor.crop_size
+        except:
+            crop_size = self.data_args.image_processor.size
+
+        images_per_sample = []
+        bboxes_per_sample = []
+        num_images_per_sample = []
+
+        for instance in instances:
+            if 'image' in instance and isinstance(instance['image'], Image.Image):
+                # Instance has an image
+                image = instance['image']
+                curr_img_crops = [image]
+                curr_bboxes = [[0.5, 0.5, 1.0, 1.0]]  # Original image bbox
+
+                if 'bboxes' in instance:
+                    bbox_list = instance['bboxes']
+                    w, h = image.size
+                    max_crops = 10
+                    for box in bbox_list:
+                        if len(box) != 4:
+                            continue
+                        x1, y1, x2, y2 = box
+                        x_center = (x1 + x2) / 2 / w
+                        y_center = (y1 + y2) / 2 / h
+                        width = (x2 - x1) / w
+                        height = (y2 - y1) / h
+                        curr_bboxes.append([x_center, y_center, width, height])
+                        # Crop the image
+                        crop_box = [int(x1), int(y1), int(x2), int(y2)]
+                        image_crop = image.crop(crop_box)
+                        curr_img_crops.append(image_crop)
+                        if len(curr_img_crops) == max_crops + 1:
+                            break
                 images_per_sample.append(curr_img_crops)
                 bboxes_per_sample.append(torch.tensor(curr_bboxes))
-                num_images_per_sample.append(len(curr_img_crops)) # main image + crops count
-                
-            # flatten the lists
-            flat_images = [img for imgs in images_per_sample for img in imgs]
-            
-            # process images using the image processor in batch
-            processor = self.data_args.image_processor
-            images_tensor = processor(images=flat_images, return_tensors='pt')['pixel_values'] # shape: [len(flat_images), 3, 384, 384] (where w = 384, h = 384)
-            
-            # build back the images hierarchy with num_images_per_sample
-            idx = 0
-            images_per_sample_tensors = []
-            for num_images in num_images_per_sample:
-                images_per_sample_tensors.append(images_tensor[idx:idx + num_images])
-                idx += num_images
-                
-            # add up the torch_zeros_idx to the images_per_sample at torch_zeros_idx index with the value in images[torch_zeros_idx] - this is to handle text only inputs
-            for idx_to_add in images_tensor_zeros_idx:
-                images_per_sample.insert(idx_to_add, images[idx_to_add])
-            
-            batch['images'] = images_per_sample_tensors # list of image preprocessed tensors per sample
-            batch['bbox_coords'] = bboxes_per_sample # list of normalised bbox coords tensors per sample 
-            
-            # print(f"bboxes_per_sample_tensors: {bboxes_per_sample}")
+                num_images_per_sample.append(len(curr_img_crops))
+            else:
+                # Instance is text-only, create dummy image and bbox
+                dummy_image = Image.new('RGB', (crop_size['width'], crop_size['height']))
+                curr_img_crops = [dummy_image]
+                curr_bboxes = [[0.5, 0.5, 1.0, 1.0]]
+                images_per_sample.append(curr_img_crops)
+                bboxes_per_sample.append(torch.tensor(curr_bboxes))
+                num_images_per_sample.append(1)
+
+        # Flatten the list of images
+        flat_images = [img for imgs in images_per_sample for img in imgs]
+        # Process images using the image processor
+        processor = self.data_args.image_processor
+        images_tensor = processor(images=flat_images, return_tensors='pt')['pixel_values']
+
+        # Reconstruct the images per sample
+        idx = 0
+        images_per_sample_tensors = []
+        for num_images in num_images_per_sample:
+            images_per_sample_tensors.append(images_tensor[idx:idx + num_images])
+            idx += num_images
+
+        batch['images'] = images_per_sample_tensors
+        batch['bbox_coords'] = bboxes_per_sample
 
         return batch
 
-
-def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments, detr_model: DetrForObjectDetection, detr_processor: DetrImageProcessor) -> Dict:
+def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = LazySupervisedDataset(tokenizer=tokenizer,
                                           data_path=data_args.data_path,
@@ -847,8 +844,6 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, dat
     data_collator = DataCollatorForSupervisedDataset(
         tokenizer=tokenizer, 
         data_args=data_args, 
-        detr_model=detr_model, 
-        detr_processor=detr_processor
     )
     
     return dict(train_dataset=train_dataset,
@@ -873,7 +868,6 @@ def train():
     global local_rank
     
     # initialise DETR model and processor before the Main Model / DeepSpeed initialization to avoid DeepSpeed from wrapping the model iniitalization, which leads to size mismatch errors
-    detr_model, detr_processor = init_detr_model()
 
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments))
@@ -1058,7 +1052,7 @@ def train():
                         module = module.to(torch.bfloat16)
     
     # print("Building data module with regional crops...")
-    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args, detr_model=detr_model, detr_processor=detr_processor)
+    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
     # print("Data module built.")
 
     # Push the model to HuggingFace Hub
