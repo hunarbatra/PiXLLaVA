@@ -38,10 +38,11 @@ from transformers import CLIPVisionConfig, SiglipVisionConfig, Dinov2Config, \
     DetrImageProcessor, DetrForObjectDetection, \
     AutoTokenizer
 
-from PIL import Image
+from PIL import Image, ImageFile
 from huggingface_hub import HfApi, Repository, HfFolder
 
 
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 HfFolder.save_token(HF_TOKEN)
 
 local_rank = None
@@ -674,7 +675,21 @@ class LazySupervisedDataset(Dataset):
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
             processor = self.data_args.image_processor
-            image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            
+            max_retries = 3
+            image = None
+            
+            for attempt in range(max_retries):
+                try:
+                    image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+                    break
+                except OSError as e:
+                    print(f"OSError while loading image {image_file}: {e}")
+                    if attempt == max_retries - 1:
+                        print(f"Skipping image {image_file} due to {e}")
+                        image = None
+            
+            # image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
             # Do not preprocess the image here; pass the PIL image to the data collator
             sources = preprocess_multimodal(
                 copy.deepcopy([e["conversations"] for e in sources]),
