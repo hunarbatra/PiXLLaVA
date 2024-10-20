@@ -31,7 +31,8 @@ cp $vision_encoder/preprocessor_config.json $outputdir
 # --lora_enable True --lora_r 128 --lora_alpha 256 \
 
 deepspeed --master_port 29600 mipha/train/train.py \
-    --deepspeed ./scripts/zero3.json \
+    --deepspeed ./scripts/zero2.json \
+    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --model_name_or_path $model_dir \
     --version v0 \
     --data_path ./data/llava-finetune/llava_v1_5_mix665k_detr.json \
@@ -46,9 +47,9 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 2 \
-    --per_device_train_batch_size 8 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 4 \
+    --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 100 \
