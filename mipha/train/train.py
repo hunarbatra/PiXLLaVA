@@ -112,6 +112,7 @@ class TrainingArguments(transformers.TrainingArguments):
     lora_weight_path: str = ""
     lora_bias: str = "none"
     non_lora_lr: Optional[float] = None
+    mm_projector_lr: Optional[float] = None
     group_by_modality_length: bool = field(default=False)
 
 
@@ -923,7 +924,7 @@ def train():
             model_args.model_name_or_path,
             config=config,
             cache_dir=training_args.cache_dir,
-            # attn_implementation="flash_attention_2",
+            attn_implementation="flash_attention_2",
             **bnb_model_from_pretrained_args
         )
     elif "gemma" in model_args.model_name_or_path:
@@ -1052,6 +1053,7 @@ def train():
     training_args.use_im_start_end = model_args.mm_use_im_start_end
     model.config.mm_use_im_patch_token = model_args.mm_use_im_patch_token
     model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
+    model.config.mm_projector_lr = training_args.mm_projector_lr
 
     if training_args.bits in [4, 8]:
         from peft.tuners.lora import LoraLayer
