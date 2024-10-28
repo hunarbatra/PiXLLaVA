@@ -73,9 +73,6 @@ def get_modality_length_grouped_indices(lengths, batch_size, generator=None):
     
     # Combine all multimodal batches followed by all text-only batches
     combined_batches = mm_batches + lang_batches
-    print(f'batch size: {batch_size}')
-    print(f'len(combined_batches): {len(combined_batches)}')
-    print(f'len(combined_batches[0]): {len(combined_batches[0])}')
 
     return combined_batches
 
