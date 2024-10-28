@@ -841,38 +841,9 @@ class DataCollatorForSupervisedDataset(object):
         images = [instance['image'] for instance in instances]  # List of tensors of shape [num_images_per_sample, 3, H, W]
         bboxes = [instance['bboxes'] for instance in instances]  # List of tensors of shape [num_bboxes_per_sample, 4]
         is_multimodal = [instance['is_multimodal'] for instance in instances]
-
-        # Find max_num_images and max_num_bboxes across the batch
-        max_num_images = max([img.shape[0] for img in images])
-        max_num_bboxes = max([bbox.shape[0] for bbox in bboxes])
-
-        # Padding images and bounding boxes within each sample
-        padded_images = []
-        for img in images:
-            num_images = img.shape[0]
-            if num_images < max_num_images:
-                pad_size = (max_num_images - num_images, *img.shape[1:])
-                padding = torch.zeros(pad_size, dtype=img.dtype)
-                img = torch.cat([img, padding], dim=0)
-            elif num_images > max_num_images:
-                img = img[:max_num_images]
-            padded_images.append(img)
-        # padded_images = list of tensors, each of shape [max_num_images, 3, H, W]
-
-        padded_bboxes = []
-        for bbox in bboxes:
-            num_bboxes = bbox.shape[0]
-            if num_bboxes < max_num_bboxes:
-                pad_size = (max_num_bboxes - num_bboxes, bbox.shape[1])
-                padding = torch.zeros(pad_size, dtype=bbox.dtype)
-                bbox = torch.cat([bbox, padding], dim=0)
-            elif num_bboxes > max_num_bboxes:
-                bbox = bbox[:max_num_bboxes]
-            padded_bboxes.append(bbox)
-        # padded_bboxes = list of tensors, each of shape [max_num_bboxes, 4]
-
-        batch['images'] = padded_images
-        batch['bbox_coords'] = padded_bboxes
+        
+        batch['images'] = images
+        batch['bbox_coords'] = bboxes
         
         return batch
 
