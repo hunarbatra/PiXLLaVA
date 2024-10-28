@@ -1,5 +1,8 @@
 #!/bin/bash
 
+export NCCL_DEBUG=WARN
+export DEEPSPEED_LOG_LEVEL=DEBUG
+
 ## vision_encoder
 #vision_encoder=openai/clip-vit-large-patch14-336
 # vision_encoder=google/siglip-so400m-patch14-384
@@ -62,9 +65,11 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --tf32 True \
     --model_max_length 4096 \
     --gradient_checkpointing True \
-    --dataloader_num_workers 4 \
+    --dataloader_num_workers 12 \
     --lazy_preprocess True \
     --report_to wandb \
-    --push_to_hub False
+    --push_to_hub False \
+    --dataloader_pin_memory True 
+    
 
 cp $vision_encoder/preprocessor_config.json $outputdir/checkpoint-1
