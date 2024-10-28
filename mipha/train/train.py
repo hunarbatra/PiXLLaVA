@@ -24,6 +24,7 @@ import torch
 import torch.nn as nn
 
 import transformers
+import cv2
 
 from mipha.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, \
     DEFAULT_IM_END_TOKEN
@@ -665,15 +666,29 @@ class LazySupervisedDataset(Dataset):
         return length_list
     
     def __getitem__(self, i):
-        return self._get_single_item(i)  
+        try:
+            if isinstance(i, list):
+                return [self._get_single_item(idx) for idx in i]  
+            else:
+                return self._get_single_item(i)
+        except Exception as e:
+            print(f"Error processing item {i}: {e}")
 
     def _get_single_item(self, i) -> Dict[str, torch.Tensor]:
+        print(f'processing image {i}...')
         sources = self.list_data_dict[i]
         if isinstance(i, int):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
-        if 'image' in sources[0] and self.list_data_dict[i]['image'] is not None:
+        
+        sample = sources[0]
+        
+        images_tensors = None
+        bboxes_tensor = None
+        
+        if 'image' in sample and self.list_data_dict[i]['image'] is not None:
             image_file = self.list_data_dict[i]['image']
+            bboxes = self.list_data_dict[i]['bboxes']
             image_folder = self.data_args.image_folder
             processor = self.data_args.image_processor
             
@@ -682,7 +697,8 @@ class LazySupervisedDataset(Dataset):
             
             for attempt in range(max_retries):
                 try:
-                    image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+                    image = cv2.imread(os.path.join(image_folder, image_file))
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                     break
                 except OSError as e:
                     print(f"OSError while loading image {image_file}: {e}")
@@ -690,35 +706,82 @@ class LazySupervisedDataset(Dataset):
                         print(f"Skipping image {image_file} due to {e}")
                         image = None
             
-            # image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
-            # Do not preprocess the image here; pass the PIL image to the data collator
-            sources = preprocess_multimodal(
-                copy.deepcopy([e["conversations"] for e in sources]),
-                self.data_args)
-            
-            # get 'bboxes' data for images
-            bboxes = self.list_data_dict[i]['bboxes']
-            
-            if self.data_args.image_aspect_ratio == 'pad':
-                def expand2square(pil_img, background_color):
-                    width, height = pil_img.size
-                    if width == height:
-                        return pil_img
-                    elif width > height:
-                        result = Image.new(pil_img.mode, (width, width), background_color)
-                        result.paste(pil_img, (0, (width - height) // 2))
-                        return result
-                    else:
-                        result = Image.new(pil_img.mode, (height, height), background_color)
-                        result.paste(pil_img, ((height - width) // 2, 0))
-                        return result
+            if image is not None:
+                if self.data_args.image_aspect_ratio == 'pad':
+                    def expand2square(cv2_img, background_color):
+                        width, height, channels = cv2_img.shape
+                        if width == height:
+                            return cv2_img
+                        elif width > height:
+                            # Pad top and bottom
+                            pad = (width - height) // 2
+                            pad_top = pad
+                            pad_bottom = width - height - pad_top
+                            cv2_img = cv2.copyMakeBorder(cv2_img, pad_top, pad_bottom, 0, 0,
+                                                        cv2.BORDER_CONSTANT, value=background_color)
+                            return cv2_img
+                        else:
+                            # Pad left and right
+                            pad = (height - width) // 2
+                            pad_left = pad
+                            pad_right = height - width - pad_left
+                            cv2_img = cv2.copyMakeBorder(cv2_img, 0, 0, pad_left, pad_right,
+                                                        cv2.BORDER_CONSTANT, value=background_color)
+                            return cv2_img
 
-                image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            # else if self.data_args.image_aspect_ratio == 'square': then we apply the image_processor which happens by default further in the data collator
+                    # Convert image_mean to [R, G, B] values in the range 0-255
+                    background_color = [int(x * 255) for x in processor.image_mean]
+                    image = expand2square(image, background_color)
+                
+                bboxes_list = []
+                image_crops = []
+                
+                bboxes_list.append([0.5, 0.5, 1.0, 1.0]) # Original image bbox
+                image_crops.append(image)
+                
+                if bboxes:
+                    w, h, _ = image.shape
+                    max_crops = 10
+                    
+                    for box in bboxes:
+                        if len(box) != 4:
+                            continue
+                        x1, y1, x2, y2 = box
+                        x_center = (x1 + x2) / 2 / w
+                        y_center = (y1 + y2) / 2 / h
+                        width = (x2 - x1) / w
+                        height = (y2 - y1) / h
+                        bbox = [x_center, y_center, width, height]
+                        bboxes_list.append(bbox)
+                        
+                        # crop the image
+                        crop_box = [int(x1), int(y1), int(x2), int(y2)]
+                        image_crop = image[crop_box[1]:crop_box[3], crop_box[0]:crop_box[2]]
+                        image_crops.append(image_crop)
+                        
+                        if len(image_crops) == max_crops + 1:
+                            break
+                        
+                # apply processor to images
+                images_tensors = processor(images=image_crops, return_tensors='pt')['pixel_values'] # shape: [len(image_crops), 3, 384, 384]
+                bboxes_tensor = torch.tensor(bboxes_list) # shape: [len(image_crops), 4]
+                
+            # preprocess conversations
+            sources = preprocess_multimodal(
+                    copy.deepcopy([e["conversations"] for e in sources]),
+                    self.data_args)
             
         else: # if text only input i.e 'image' == None
-            image = None
-            bboxes = []
+            try:
+                crop_size = self.data_args.image_processor.crop_size
+            except:
+                crop_size = self.data_args.image_processor.size
+                
+            dummy_image = torch.zeros(3, crop_size['height'], crop_size['width'])
+            images_tensors = dummy_image.unsqueeze(0)
+            bboxes_tensor = torch.tensor([[0.5, 0.5, 1.0, 1.0]])
+
+            # preprocess conversations
             sources = copy.deepcopy([e["conversations"] for e in sources])
             
         data_dict = preprocess(
@@ -729,22 +792,10 @@ class LazySupervisedDataset(Dataset):
         if isinstance(i, int):
             data_dict = dict(input_ids=data_dict["input_ids"][0],
                              labels=data_dict["labels"][0])
-
-        # image exist in the data, add up the PIL image to data_dict
-        if 'image' in self.list_data_dict[i] and self.list_data_dict[i]['image'] is not None:
-            data_dict['image'] = image
-            if 'bboxes' in self.list_data_dict[i]:
-                data_dict['bboxes'] = bboxes
-        elif self.data_args.is_multimodal: # default: True
-            # image does not exist in the data, but the model is multimodal
-            # for text only inputs, add up a dummpy image tensor
-            try:
-                crop_size = self.data_args.image_processor.crop_size
-            except:
-                crop_size = self.data_args.image_processor.size
-            data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
-            data_dict['bboxes'] = [] # set bboxes to empty list
             
+        data_dict['image'] = images_tensors
+        data_dict['bboxes'] = bboxes_tensor
+        
         data_dict['id'] = self.list_data_dict[i]['id']
         data_dict['is_multimodal'] = ('image' in self.list_data_dict[i] and self.list_data_dict[i]['image'] is not None)
             
@@ -762,7 +813,6 @@ class DataCollatorForSupervisedDataset(object):
         self.data_args = data_args
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        # print(f'instances: {instances}')
         input_ids, labels = tuple([instance[key] for instance in instances]
                                   for key in ("input_ids", "labels"))
         # temp_pad_token_id = 51000
@@ -776,79 +826,54 @@ class DataCollatorForSupervisedDataset(object):
         labels = torch.nn.utils.rnn.pad_sequence(labels,
                                                  batch_first=True,
                                                  padding_value=IGNORE_INDEX)
+        
+        # truncate sequences to models max length
         input_ids = input_ids[:, :self.tokenizer.model_max_length]
         labels = labels[:, :self.tokenizer.model_max_length]
+        
         batch = dict(
             input_ids=input_ids,
             labels=labels,
             attention_mask=input_ids.ne(self.tokenizer.pad_token_id)
-            # attention_mask=input_ids.ne(temp_pad_token_id),
         )
+        
+        # Collate images and bounding boxes
+        images = [instance['image'] for instance in instances]  # List of tensors of shape [num_images_per_sample, 3, H, W]
+        bboxes = [instance['bboxes'] for instance in instances]  # List of tensors of shape [num_bboxes_per_sample, 4]
+        is_multimodal = [instance['is_multimodal'] for instance in instances]
 
-        # Prepare images and bounding boxes for all instances
-        try:
-            crop_size = self.data_args.image_processor.crop_size
-        except:
-            crop_size = self.data_args.image_processor.size
+        # Find max_num_images and max_num_bboxes across the batch
+        max_num_images = max([img.shape[0] for img in images])
+        max_num_bboxes = max([bbox.shape[0] for bbox in bboxes])
 
-        images_per_sample = []
-        bboxes_per_sample = []
-        num_images_per_sample = []
+        # Padding images and bounding boxes within each sample
+        padded_images = []
+        for img in images:
+            num_images = img.shape[0]
+            if num_images < max_num_images:
+                pad_size = (max_num_images - num_images, *img.shape[1:])
+                padding = torch.zeros(pad_size, dtype=img.dtype)
+                img = torch.cat([img, padding], dim=0)
+            elif num_images > max_num_images:
+                img = img[:max_num_images]
+            padded_images.append(img)
+        # padded_images = list of tensors, each of shape [max_num_images, 3, H, W]
 
-        for instance in instances:
-            if 'image' in instance and isinstance(instance['image'], Image.Image):
-                # Instance has an image
-                image = instance['image']
-                curr_img_crops = [image]
-                curr_bboxes = [[0.5, 0.5, 1.0, 1.0]]  # Original image bbox
+        padded_bboxes = []
+        for bbox in bboxes:
+            num_bboxes = bbox.shape[0]
+            if num_bboxes < max_num_bboxes:
+                pad_size = (max_num_bboxes - num_bboxes, bbox.shape[1])
+                padding = torch.zeros(pad_size, dtype=bbox.dtype)
+                bbox = torch.cat([bbox, padding], dim=0)
+            elif num_bboxes > max_num_bboxes:
+                bbox = bbox[:max_num_bboxes]
+            padded_bboxes.append(bbox)
+        # padded_bboxes = list of tensors, each of shape [max_num_bboxes, 4]
 
-                if 'bboxes' in instance:
-                    bbox_list = instance['bboxes']
-                    w, h = image.size
-                    max_crops = 10
-                    for box in bbox_list:
-                        if len(box) != 4:
-                            continue
-                        x1, y1, x2, y2 = box
-                        x_center = (x1 + x2) / 2 / w
-                        y_center = (y1 + y2) / 2 / h
-                        width = (x2 - x1) / w
-                        height = (y2 - y1) / h
-                        curr_bboxes.append([x_center, y_center, width, height])
-                        # Crop the image
-                        crop_box = [int(x1), int(y1), int(x2), int(y2)]
-                        image_crop = image.crop(crop_box)
-                        curr_img_crops.append(image_crop)
-                        if len(curr_img_crops) == max_crops + 1:
-                            break
-                images_per_sample.append(curr_img_crops)
-                bboxes_per_sample.append(torch.tensor(curr_bboxes))
-                num_images_per_sample.append(len(curr_img_crops))
-            else:
-                # Instance is text-only, create dummy image and bbox
-                dummy_image = Image.new('RGB', (crop_size['width'], crop_size['height']))
-                curr_img_crops = [dummy_image]
-                curr_bboxes = [[0.5, 0.5, 1.0, 1.0]]
-                images_per_sample.append(curr_img_crops)
-                bboxes_per_sample.append(torch.tensor(curr_bboxes))
-                num_images_per_sample.append(1)
-
-        # Flatten the list of images
-        flat_images = [img for imgs in images_per_sample for img in imgs]
-        # Process images using the image processor
-        processor = self.data_args.image_processor
-        images_tensor = processor(images=flat_images, return_tensors='pt')['pixel_values']
-
-        # Reconstruct the images per sample
-        idx = 0
-        images_per_sample_tensors = []
-        for num_images in num_images_per_sample:
-            images_per_sample_tensors.append(images_tensor[idx:idx + num_images])
-            idx += num_images
-
-        batch['images'] = images_per_sample_tensors
-        batch['bbox_coords'] = bboxes_per_sample
-
+        batch['images'] = padded_images
+        batch['bbox_coords'] = padded_bboxes
+        
         return batch
 
 def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments) -> Dict:
@@ -1068,20 +1093,18 @@ def train():
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
     
-    # print("Building data module with regional crops...")
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-    # print("Data module built.")
 
-    # Push the model to HuggingFace Hub
     repo_name = training_args.output_dir.split('/')[-1]
     training_args.hub_model_id = repo_name
-    # training_args.push_to_hub = True
     training_args.hub_private_repo = True
     
-    trainer = MiphaTrainer(model=model,
-                           tokenizer=tokenizer,
-                           args=training_args,
-                           **data_module)
+    trainer = MiphaTrainer(
+        model=model,
+        tokenizer=tokenizer,
+        args=training_args,
+        **data_module
+    )
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
