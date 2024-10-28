@@ -675,7 +675,7 @@ class LazySupervisedDataset(Dataset):
             print(f"Error processing item {i}: {e}")
 
     def _get_single_item(self, i) -> Dict[str, torch.Tensor]:
-        print(f'processing image {i}...')
+        # print(f'processing image {i}...')
         sources = self.list_data_dict[i]
         if isinstance(i, int):
             sources = [sources]
