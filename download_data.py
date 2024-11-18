@@ -14,9 +14,39 @@ from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from hf_transfer import download
+from huggingface_hub import hf_hub_download, HfApi
     
     
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+
+def download_model_files(repo_id, local_dir):
+    os.makedirs(local_dir, exist_ok=True)
+    api = HfApi()
+    files = api.list_repo_files(repo_id)
+    
+    for file in files:
+        print(f'Downloading {file}...')
+        hf_hub_download(repo_id=repo_id, filename=file, local_dir=local_dir, local_dir_use_symlinks=False)
+        
+    print(f'Downloaded {len(files)} files from {repo_id}.')
+    
+def download_siglip():
+    repo_id = "google/siglip-so400m-patch14-384"
+    local_dir = "ckpts/" + repo_id.split("/")[-1]
+    
+    download_model_files(repo_id, local_dir)
+    
+def download_phi2():
+    repo_id = "susnato/phi-2"
+    local_dir = "ckpts/" + repo_id.split("/")[-1]
+    
+    download_model_files(repo_id, local_dir)
+    
+def download_mipha3b():
+    repo_id = "zhumj34/Mipha-3B"
+    local_dir = "ckpts/" + repo_id.split("/")[-1]
+    
+    download_model_files(repo_id, local_dir)
 
 def download_file(url, local_filename, headers=None):
     """
@@ -37,17 +67,17 @@ def download_file(url, local_filename, headers=None):
                     f.write(chunk)
                     bar.update(len(chunk))
 
-def download_and_extract_zip(url, extract_to, temp_zip_path='temp.zip'):
+def download_and_extract_zip(url, extract_to, zip_filename='temp.zip'):
     """
     Downloads a zip file and extracts its contents.
     """
-    print(f'Downloading {os.path.basename(temp_zip_path)}...')
-    download_file(url, temp_zip_path)
-    print(f'Extracting {os.path.basename(temp_zip_path)}...')
-    with zipfile.ZipFile(temp_zip_path, 'r') as zip_ref:
+    print(f'Downloading {os.path.basename(zip_filename)}...')
+    download_file(url, zip_filename)
+    print(f'Extracting {os.path.basename(zip_filename)}...')
+    with zipfile.ZipFile(zip_filename, 'r') as zip_ref:
         zip_ref.extractall(extract_to)
-    os.remove(temp_zip_path)
-    print(f'{os.path.basename(temp_zip_path)} extracted to {extract_to}.')
+    os.remove(zip_filename)
+    print(f'{os.path.basename(zip_filename)} extracted to {extract_to}.')
     
 def download_and_extract_zip_hf_transfer(url, extract_to, zip_filename='temp.zip'):
     """
@@ -245,6 +275,221 @@ def download_finetune_dataset(json_only=False):
 
     print('\nAll datasets have been downloaded and organized successfully.')
     
+def download_eval_dataset(download_all=True, download_dataset=''):
+    root_path = 'playground/data/eval'
+    os.makedirs(root_path, exist_ok=True)
+    
+    download_tasks = []
+    
+    # 1. VQAv2 Dataset
+    def download_vqav2():
+        vqav2_url = 'http://images.cocodataset.org/zips/test2015.zip'
+        vqav2_extract_to = os.path.join(root_path, 'vqav2')
+        os.makedirs(vqav2_extract_to, exist_ok=True)
+        
+        print('Downloading and extracting VQAv2 dataset...')
+        download_and_extract_zip(vqav2_url, vqav2_extract_to, zip_filename='test2015.zip')
+        
+        print('VQAv2 dataset downloaded and extracted.')
+    
+    # 2. GQA Dataset
+    def download_gqa():
+        gqa_url = 'https://downloads.cs.stanford.edu/nlp/data/gqa/images.zip'
+        gqa_extract_to = os.path.join(root_path, 'gqa/data')
+        os.makedirs(gqa_extract_to, exist_ok=True)
+        
+        # download images
+        print('Downloading and extracting GQA dataset...')
+        download_and_extract_zip(gqa_url, gqa_extract_to, zip_filename='images.zip')
+        
+        # download questions
+        gqa_questions_url = 'https://downloads.cs.stanford.edu/nlp/data/gqa/questions1.2.zip'
+        print('Downloading GQA questions...')
+        download_and_extract_zip(gqa_questions_url, gqa_extract_to, zip_filename='questions1.2.zip')
+        
+        # download scene graphs
+        gqa_scene_graphs_url = 'https://downloads.cs.stanford.edu/nlp/data/gqa/sceneGraphs.zip'
+        print('Downloading GQA scene graphs...')
+        download_and_extract_zip(gqa_scene_graphs_url, gqa_extract_to, zip_filename='sceneGraphs.zip')
+        
+        # download evaluation script
+        gqa_eval_script_url = 'https://nlp.stanford.edu/data/gqa/eval.zip'
+        print('Downloading GQA evaluation script...')
+        download_and_extract_zip(gqa_eval_script_url, gqa_extract_to, zip_filename='eval.zip')
+        
+        print('GQA dataset downloaded and extracted.')
+    
+    # 3. VisWiz Dataset
+    def download_viswiz():
+        test_zip_url = 'https://vizwiz.cs.colorado.edu/VizWiz_final/images/test.zip'
+        test_json_url = 'https://vizwiz.cs.colorado.edu/VizWiz_final/vqa_data/Annotations.zip'
+        
+        viswiz_extract_to = os.path.join(root_path, 'viswiz')
+        os.makedirs(viswiz_extract_to, exist_ok=True)
+        
+        # download test.json
+        print('Downloading VisWiz test.json...')
+        download_and_extract_zip(test_json_url, os.path.join(viswiz_extract_to, 'Annotations.zip'))
+        
+        # download test.zip
+        print('Downloading VisWiz test.zip...')
+        download_and_extract_zip(test_zip_url, viswiz_extract_to, zip_filename='test.zip')
+        
+        print('VisWiz dataset downloaded and extracted.')
+    
+    # 4. ScienceQA Dataset
+    def download_scienceqa():
+        pid_splits_url = 'https://raw.githubusercontent.com/lupantech/ScienceQA/refs/heads/main/data/scienceqa/pid_splits.json'
+        problems_url = 'https://raw.githubusercontent.com/lupantech/ScienceQA/refs/heads/main/data/scienceqa/problems.json'
+        
+        sqa_extract_to = os.path.join(root_path, 'scienceqa')
+        os.makedirs(sqa_extract_to, exist_ok=True)
+        
+        # download pid_splits.json
+        print('Downloading ScienceQA pid_splits.json...')
+        download_file(pid_splits_url, os.path.join(sqa_extract_to, 'pid_splits.json'))
+        
+        # download problems.json
+        print('Downloading ScienceQA problems.json...')
+        download_file(problems_url, os.path.join(sqa_extract_to, 'problems.json'))
+        
+        sqa_images_extract_to = os.path.join(sqa_extract_to, 'images')
+        os.makedirs(sqa_images_extract_to, exist_ok=True)
+        
+        images_url = 'https://scienceqa.s3.us-west-1.amazonaws.com/images/test.zip'
+        
+        # download test.zip
+        print('Downloading ScienceQA test.zip...')
+        download_and_extract_zip(images_url, sqa_images_extract_to, zip_filename='test.zip')
+        
+        print('ScienceQA dataset downloaded and extracted.')
+    
+    # 5. TextVQA Dataset
+    def download_textvqa():
+        json_url = 'https://dl.fbaipublicfiles.com/textvqa/data/TextVQA_0.5.1_val.json'
+        
+        textvqa_extract_to = os.path.join(images_root, 'textvqa')
+        os.makedirs(textvqa_extract_to, exist_ok=True)
+        
+        # download test.json
+        print('Downloading TextVQA test.json...')
+        download_file(json_url, os.path.join(textvqa_extract_to, 'TextVQA_0.5.1_val.json'))
+        
+        images_url = 'https://dl.fbaipublicfiles.com/textvqa/images/train_val_images.zip'
+        
+        # download train_val_images.zip
+        print('Downloading TextVQA train_val_images.zip...')
+        download_and_extract_zip(images_url, textvqa_extract_to, zip_filename='train_val_images.zip')
+        
+        print('TextVQA dataset downloaded and extracted.')
+    
+    # 6. POPE Dataset # TODO
+    def download_pope():
+        json_url_1 = 'https://raw.githubusercontent.com/AoiDragon/POPE/e3e39262c85a6a83f26cf5094022a782cb0df58d/output/coco/coco_pope_adversarial.json'
+        json_url_2 = 'https://raw.githubusercontent.com/AoiDragon/POPE/e3e39262c85a6a83f26cf5094022a782cb0df58d/output/coco/coco_pope_popular.json'
+        json_url_3 = 'https://raw.githubusercontent.com/AoiDragon/POPE/e3e39262c85a6a83f26cf5094022a782cb0df58d/output/coco/coco_pope_random.json'
+        
+        pope_extract_to = os.path.join(images_root, 'pope')
+        os.makedirs(pope_extract_to, exist_ok=True)
+        
+        # download coco_pope_adversarial.json
+        print('Downloading POPE coco_pope_adversarial.json...')
+        download_file(json_url_1, os.path.join(pope_extract_to, 'coco_pope_adversarial.json'))
+        
+        # download coco_pope_popular.json
+        print('Downloading POPE coco_pope_popular.json...')
+        download_file(json_url_2, os.path.join(pope_extract_to, 'coco_pope_popular.json'))
+        
+        # download coco_pope_random.json
+        print('Downloading POPE coco_pope_random.json...')
+        download_file(json_url_3, os.path.join(pope_extract_to, 'coco_pope_random.json'))
+        
+        print('Pope dataset downloaded and extracted.')
+    
+    # 7. MME Dataset # TODO
+    def download_mme():
+        pass
+    
+    # 8. MMBench-CN Dataset # TODO
+    def download_mmbench_cn():
+        tsv_url = 'https://download.openmmlab.com/mmclassification/datasets/mmbench/mmbench_dev_en_20231003.tsv'
+        
+        mmb_cn_extract_to = os.path.join(images_root, 'mmbench_cn')
+        
+        # download mmbench_dev_en_20231003.tsv
+        print('Downloading MMBench-CN tsv file...')
+        download_file(tsv_url, os.path.join(mmb_cn_extract_to, 'mmbench_dev_en_20231003.tsv'))
+        
+        print('MMBench-CN dataset downloaded and extracted.')
+    
+    # 9. MMVet Dataset
+    def download_mmvet():
+        json_url = 'https://github.com/yuweihao/MM-Vet/releases/download/v1/mm-vet.zip'
+
+        mmv_extract_to = os.path.join(images_root, 'mmvet')
+        os.makedirs(mmv_extract_to, exist_ok=True)
+        
+        # download mm-vet.zip
+        print('Downloading MMVet mm-vet.zip...')
+        download_and_extract_zip(json_url, mmv_extract_to, zip_filename='mm-vet.zip')
+        
+        print('MMVet dataset downloaded and extracted.')
+        
+    # 10. SEED-Bench Dataset # TODO
+    def download_seed_bench():
+        pass
+    
+    def individual_dataset_download(dataset_name):
+        if dataset_name == 'vqav2':
+            download_vqav2()
+        elif dataset_name == 'gqa':
+            download_gqa()
+        elif dataset_name == 'viswiz':
+            download_viswiz()
+        elif dataset_name == 'scienceqa':
+            download_scienceqa()
+        elif dataset_name == 'textvqa':
+            download_textvqa()
+        elif dataset_name == 'pope':
+            download_pope()
+        elif dataset_name == 'mme':
+            download_mme()
+        elif dataset_name == 'mmbench_cn':
+            download_mmbench_cn()
+        elif dataset_name == 'mmvet':
+            download_mmvet()
+        elif dataset_name == 'seed_bench':
+            download_seed_bench()
+        else:
+            raise ValueError(f'Invalid dataset name: {dataset_name}')
+        
+    if not download_all and download_dataset:
+        individual_dataset_download(download_dataset)
+    elif download_all:
+        download_tasks.append(download_vqav2)
+        download_tasks.append(download_gqa)
+        download_tasks.append(download_viswiz)
+        download_tasks.append(download_scienceqa)
+        download_tasks.append(download_textvqa)
+        download_tasks.append(download_pope)
+        download_tasks.append(download_mme)
+        download_tasks.append(download_mmbench_cn)
+        download_tasks.append(download_mmvet)
+        download_tasks.append(download_seed_bench)
+    
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            dataset_futures = {executor.submit(task): task.__name__ for task in download_tasks}
+
+            for future in as_completed(dataset_futures):
+                task_name = dataset_futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f'Error in {task_name}: {e}')
+
+        print('\nAll datasets have been downloaded and organized successfully.')
+    
+    
 def coco_data_test():
     # Example usage for the COCO dataset
     coco_url = 'https://huggingface.co/datasets/BoyangZ/coco_train_2017/resolve/main/train2017.zip'
@@ -261,6 +506,10 @@ if __name__ == '__main__':
     fire.Fire({
         'pretrain_data': download_pretrain_dataset, # eg usage: python setup.py pretrain_data
         'finetune_data': download_finetune_dataset,
+        'eval_data': download_eval_dataset,
         'coco_data_test': coco_data_test,
+        'download_siglip': download_siglip,
+        'download_phi2': download_phi2,
+        'download_mipha3b': download_mipha3b,
     })
     
