@@ -39,11 +39,11 @@ class MiphaMetaModel:
             ProjectorConfig(**config.vision_config["mm_projector"])
         )
         
+        self.hidden_size = config.vision_config['mm_projector']['hidden_size']
+        
         self.bbox_embedder = nn.Sequential(
-            # nn.Linear(4, config.vision_config["vision_tower"]["hidden_size"]), # d_{bbox} -> d_{hidden_dim of vision_tower}
-            # nn.LayerNorm(config.vision_config["vision_tower"]["hidden_size"]), # add post layer norm to normalize the bbox coords across samples
-            nn.Linear(4, 729 * 1152), # mipha encoder pos embedding dim 729*1152 # TODO: add dynamic dim here
-            nn.LayerNorm(729 * 1152)
+            nn.Linear(4, self.hidden_size), # [4, 2560]: d_{bbox} -> d_{LLM_hidden_dim}
+            nn.LayerNorm(self.hidden_size) # [2560] # add post layer norm to normalize the bbox coords across samples
         )
 
     def get_vision_tower(self):
@@ -88,38 +88,30 @@ class MiphaMetaForCausalLM(ABC):
         flat_images = torch.cat(images, dim=0) # shape: [total_num_images, channels, height, width]
         flat_image_features = self.get_model().get_vision_tower()(flat_images) # shape: [total_num_images, 729, 1152]
         
-        # split image features back into per-sample lists
-        image_features_per_sample = []
-        idx = 0
-        for img_tensor in images:
-            num_images = img_tensor.shape[0]
-            image_features_per_sample.append(flat_image_features[idx:idx + num_images])
-            idx += num_images
-            
-        # Add bbox embeddings to object crops (excluding the original image)
-        for i, (img_feats, bbox_coords) in enumerate(zip(image_features_per_sample, bbox_coords_per_sample)):
-            if bbox_coords.shape[0] > 1: # add bbox embeddings to object crops (excluding the original image)
-                # apply bbox embedding
-                bbox_embeddings = self.get_model().bbox_embedder(bbox_coords[1:].to(img_feats.device)) # shape: [num_crops, 729, 1152]
-                bbox_embeddings = bbox_embeddings.view(bbox_embeddings.shape[0], 729, 1152) # shape: [num_crops, 729, 1152] # TODO: add dynamic dim here
-                img_feats[1:] += bbox_embeddings # img_feats shape is: [num_images, 729, 1152]
-            
-        # flatten image features back into a single tensor per sample
-        flat_features = torch.cat(image_features_per_sample, dim=0) # shape of each element in the list: [total_num_images, 729, 1152]
-        # pass flattened features through the projector together
-        flat_projected_features = self.get_model().mm_projector(flat_features) # shape of each element in the list: [total_num_images, 729, 2560]
+        # Project image features to LLM hidden size
+        flat_projected_features = self.get_model().mm_projector(flat_image_features) # shape of each element in the list: [total_num_images, 729, 2560]
         
+        # Apply pooling operation to projected features to get 27x27 patches down to 169 patches i.e 1/4 pooling strategy to halve the spatial dimensions (width and height)
         flat_pooled_features = self.get_model().meanPooling2D(flat_projected_features) # shape of each element in the list: [total_num_images, 169, 2560] down from [total_num_images, 729, 2560]
         
-        # split projected features back into per-sample lists i.e list of stacked tensors per sample
+        # Split projected pooled features back into per-sample lists
         projected_features_per_sample = []
         idx = 0
         for img_tensor in images:
             num_images = img_tensor.shape[0]
             projected_features_per_sample.append(flat_pooled_features[idx:idx + num_images])
             idx += num_images
-        
-        return projected_features_per_sample # list of tensors per sample, each element in the list is a tensor of shape [num_images, 169, 1152] i.e stacked tensors per sample
+            
+        # Add scaled bbox embeddings to object crops (excluding the original image) to the LLM projected and pooled features to add in 2D positional information
+        for i, (proj_feats, bbox_coords) in enumerate(zip(projected_features_per_sample, bbox_coords_per_sample)):
+            if bbox_coords.shape[0] > 1: # there are object crops
+                # apply bbox embedding
+                bbox_embeddings = self.get_model().bbox_embedder(bbox_coords[1:].to(proj_feats.device)) # shape: [num_crops, 2560]
+                bbox_embeddings = bbox_embeddings.unsqueeze(1) # shape: [num_crops, 1, 2560]
+                bbox_embeddings = bbox_embeddings.expand(-1, proj_feats.shape[1], -1) # shape: [num_crops, len(pooled_feats), 2560] i.e [num_crops, 169, 2560]
+                proj_feats[1:] += bbox_embeddings # proj_feats shape is: [num_images, 169, 2560]
+                
+        return projected_features_per_sample # list of tensors per sample, each element in the list is a tensor of shape [num_images, 169, 2560] i.e stacked tensors per sample
 
     def prepare_inputs_labels_for_multimodal(
             self, input_ids, attention_mask, past_key_values, labels, images, bbox_coords_per_sample
