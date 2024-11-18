@@ -11,6 +11,8 @@ from mipha.model.builder import load_pretrained_model
 from mipha.utils import disable_torch_init
 from mipha.mm_utils import tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria, process_images
 
+from transformers import DetrImageProcessor, DetrForObjectDetection
+
 from PIL import Image
 import math
 
@@ -25,10 +27,22 @@ def get_chunk(lst, n, k):
     chunks = split_list(lst, n)
     return chunks[k]
 
+def init_detr_model():
+    # Initialize the DETR model and processor
+    detr_model = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
+    detr_processor = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
+    
+    # Set DETR model to evaluation mode and disable gradients
+    detr_model.eval()
+    for param in detr_model.parameters():
+        param.requires_grad = False
+    
+    return detr_model, detr_processor
 
 def eval_model(args):
     # Model
     disable_torch_init()
+    detr_model, detr_processor = init_detr_model()
     model_path = os.path.expanduser(args.model_path)
     model_name = get_model_name_from_path(model_path)
     tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name)
@@ -38,6 +52,7 @@ def eval_model(args):
     answers_file = os.path.expanduser(args.answers_file)
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
+    
     for i, line in enumerate(tqdm(questions)):
         idx = line["id"]
         question = line['conversations'][0]
@@ -46,16 +61,23 @@ def eval_model(args):
 
         if 'image' in line:
             image_file = line["image"]
-            image = Image.open(os.path.join(args.image_folder, image_file))
-            image_tensor = process_images([image], image_processor, model.config)[0]
-            images = image_tensor.unsqueeze(0).half().cuda()
+            image = Image.open(os.path.join(args.image_folder, image_file)) 
+            image_tensor, bboxes_list = process_images([image], image_processor, model.config, detr_model, detr_processor)
+            
+            images = image_tensor.unsqueeze(0).half().cuda()[0]
+            bboxes_list = bboxes_list.unsqueeze(0).half().cuda()[0]
+            
+            images_list = [images]
+            bbox_list = [bboxes_list]
+            
             if getattr(model.config, 'mm_use_im_start_end', False):
                 qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs
             else:
                 qs = DEFAULT_IMAGE_TOKEN + '\n' + qs
             cur_prompt = '<image>' + '\n' + cur_prompt
         else:
-            images = None
+            images_list = None
+            bbox_list = None
 
         if args.single_pred_prompt:
             qs = qs + '\n' + "Answer with the option's letter from the given choices directly."
@@ -66,6 +88,7 @@ def eval_model(args):
         conv.append_message(conv.roles[1], None)
         prompt = conv.get_prompt()
         input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+        attention_mask = input_ids != tokenizer.pad_token_id  # Generate attention mask for text
 
         stop_str = conv.sep2
         keywords = [stop_str]
@@ -74,7 +97,9 @@ def eval_model(args):
         with torch.inference_mode():
             output_ids = model.generate(
                 input_ids,
-                images=images,
+                attention_mask=attention_mask,
+                images=images_list,
+                bbox_coords=bbox_list,
                 do_sample=True if args.temperature > 0 else False,
                 temperature=args.temperature,
                 max_new_tokens=1024,
@@ -98,10 +123,12 @@ def eval_model(args):
         if args.answer_prompter:
             outputs_reasoning = outputs
             input_ids = tokenizer_image_token(prompt + outputs_reasoning + ' ###\nANSWER:', tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+            attention_mask = input_ids != tokenizer.pad_token_id  # Update attention mask
 
             with torch.inference_mode():
                 output_ids = model.generate(
                     input_ids,
+                    attention_mask=attention_mask,
                     images=images,
                     do_sample=True if args.temperature > 0 else False,
                     temperature=args.temperature,
