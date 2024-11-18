@@ -142,17 +142,17 @@ class LengthGroupedBatchSampler(BatchSampler):
 
     def __iter__(self):
         if self.group_by_modality:
-            combined_batches = get_modality_length_grouped_indices(
+            batches = get_modality_length_grouped_indices(
                 self.lengths,
                 self.batch_size,
                 generator=self.generator
             )
             # Keep multimodal and text-only batches strictly separate
-            return iter(combined_batches)
         else:
             indices = torch.randperm(len(self.lengths), generator=self.generator).tolist()
             batches = [indices[i:i + self.batch_size] for i in range(0, len(indices), self.batch_size)]
-            return iter(batches)
+            
+        return iter(batches)
 
     def __len__(self):
         return (len(self.lengths) + self.batch_size - 1) // self.batch_size
@@ -189,3 +189,27 @@ class MiphaTrainer(Trainer):
             )
         else:
             return super()._get_train_sampler()
+
+# class MiphaTrainer(Trainer): # old mipha-trainer
+
+#     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
+#         if self.train_dataset is None or not has_length(self.train_dataset):
+#             return None
+
+#         if self.args.group_by_modality_length:
+#             lengths = self.train_dataset.modality_lengths
+#             return LengthGroupedSampler(
+#                 # self.args.train_batch_size * self.args.gradient_accumulation_steps, # TODO: seems that we should not have gradient_accumulation_steps
+#                 self.args.train_batch_size,
+#                 world_size=self.args.world_size,
+#                 lengths=lengths,
+#                 group_by_modality=True,
+#             )
+#         else:
+#             return super()._get_train_sampler()
+
+#     def _save_checkpoint(self, model, trial, metrics=None):
+#         super(MiphaTrainer, self)._save_checkpoint(model, trial, metrics)
+
+#     def _save(self, output_dir: Optional[str] = None, state_dict=None):
+#         super(MiphaTrainer, self)._save(output_dir, state_dict)
