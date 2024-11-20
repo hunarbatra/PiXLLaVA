@@ -54,9 +54,9 @@ class MiphaMetaModel:
     
     def meanPooling2D(self, x):
         batch_size, num_positions, hidden_size = x.size()
-        spatial_dim = int(num_positions ** 0.5) # 27x27 for 729
+        spatial_dim = int(num_positions ** 0.5) # 27x27 for 729 -> 13x13 for 169
         
-        # reshape to [batch_size, 27, 27, 1152 (hidden_size)]
+        # reshape to [batch_size, 13, 13, 2560 (hidden_size)]
         x_reshaped = x.view(batch_size, spatial_dim, spatial_dim, hidden_size)
         
         # apply 2D pooling with kernel_size=2 and stride=2 to halve the spatial dimensions
@@ -88,28 +88,28 @@ class MiphaMetaForCausalLM(ABC):
         flat_images = torch.cat(images, dim=0) # shape: [total_num_images, channels, height, width]
         flat_image_features = self.get_model().get_vision_tower()(flat_images) # shape: [total_num_images, 729, 1152]
         
-        # Project image features to LLM hidden size
-        flat_projected_features = self.get_model().mm_projector(flat_image_features) # shape of each element in the list: [total_num_images, 729, 2560]
+        # # Apply pooling operation to projected features to get 27x27 patches down to 169 patches i.e 1/4 pooling strategy to halve the spatial dimensions (width and height)
+        flat_pooled_features = self.get_model().meanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 2560] down from [total_num_images, 729, 2560]
         
-        # Apply pooling operation to projected features to get 27x27 patches down to 169 patches i.e 1/4 pooling strategy to halve the spatial dimensions (width and height)
-        flat_pooled_features = self.get_model().meanPooling2D(flat_projected_features) # shape of each element in the list: [total_num_images, 169, 2560] down from [total_num_images, 729, 2560]
+        # Project image features to LLM hidden size (d_llm)
+        flat_projected_features = self.get_model().mm_projector(flat_pooled_features) # shape of each element in the list: [total_num_images, 729, 2560]
         
         # Split projected pooled features back into per-sample lists
         projected_features_per_sample = []
         idx = 0
         for img_tensor in images:
             num_images = img_tensor.shape[0]
-            projected_features_per_sample.append(flat_pooled_features[idx:idx + num_images])
+            projected_features_per_sample.append(flat_projected_features[idx:idx + num_images])
             idx += num_images
             
         # Add scaled bbox embeddings to object crops (excluding the original image) to the LLM projected and pooled features to add in 2D positional information
         for i, (proj_feats, bbox_coords) in enumerate(zip(projected_features_per_sample, bbox_coords_per_sample)):
             if bbox_coords.shape[0] > 1: # there are object crops
                 # apply bbox embedding
-                bbox_embeddings = self.get_model().bbox_embedder(bbox_coords[1:].to(proj_feats.device)) # shape: [num_crops, 2560]
+                bbox_embeddings = self.get_model().bbox_embedder(bbox_coords[1:].to(proj_feats.device)) # shape: [num_crops, 2560] - project d_bbox -> d_llm
                 bbox_embeddings = bbox_embeddings.unsqueeze(1) # shape: [num_crops, 1, 2560]
                 bbox_embeddings = bbox_embeddings.expand(-1, proj_feats.shape[1], -1) # shape: [num_crops, len(pooled_feats), 2560] i.e [num_crops, 169, 2560]
-                proj_feats[1:] += bbox_embeddings # proj_feats shape is: [num_images, 169, 2560]
+                proj_feats[1:] += bbox_embeddings # proj_feats shape is: [num_images, 169, 2560], add bbox embeddings projected to d_llm to the projected object crop features
                 
         return projected_features_per_sample # list of tensors per sample, each element in the list is a tensor of shape [num_images, 169, 2560] i.e stacked tensors per sample
 
