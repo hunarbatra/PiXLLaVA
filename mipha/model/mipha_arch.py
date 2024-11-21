@@ -5,6 +5,9 @@ from abc import ABC, abstractmethod
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+from einops import rearrange
 
 from .multimodal_encoder.clip_encoder import CLIPVisionTower
 from .multimodal_encoder.siglip_encoder import SiglipVisionTower
@@ -39,11 +42,26 @@ class MiphaMetaModel:
             ProjectorConfig(**config.vision_config["mm_projector"])
         )
         
-        self.hidden_size = config.vision_config['mm_projector']['hidden_size']
+        self.hidden_size = config.vision_config['mm_projector']['mm_hidden_size'] # 1152
+        self.proj_hidden_size = config.vision_config['mm_projector']['hidden_size'] # 2560
+        self.num_heads = config.vision_config['vision_tower']['num_attention_heads']  # 16
+        
+        # ensure hidden_size is divisible by num_heads
+        assert self.hidden_size % self.num_heads == 0, f"hidden_size must be divisible by num_heads (got `hidden_size`: {self.hidden_size} and `num_heads`: {self.num_heads})."
+        
+        self.layer_norm_eps = config.vision_config['vision_tower'].get('layer_norm_eps', 1e-6)
+        self.layer_norm = nn.LayerNorm(self.hidden_size, eps=self.layer_norm_eps)
+        self.proj_layer_norm = nn.LayerNorm(self.proj_hidden_size, eps=self.layer_norm_eps)
         
         self.bbox_embedder = nn.Sequential(
-            nn.Linear(4, self.hidden_size), # [4, 2560]: d_{bbox} -> d_{LLM_hidden_dim}
-            nn.LayerNorm(self.hidden_size) # [2560] # add post layer norm to normalize the bbox coords across samples
+            nn.Linear(4, self.proj_hidden_size), # [4, 2560]: d_{bbox} -> d_{LLM_hidden_dim}
+            self.proj_layer_norm # [2560] - add post layer norm to normalize the bbox coords across samples
+        )
+        
+        self.attention_pool = nn.MultiheadAttention(
+            embed_dim=self.hidden_size,
+            num_heads=self.num_heads,
+            batch_first=True  # uses (batch, seq, feature) for input and output tensors if set to true
         )
 
     def get_vision_tower(self):
@@ -70,6 +88,46 @@ class MiphaMetaModel:
         
         return x_pooled
     
+    def attentionMeanPooling2D(self, x):
+        batch_size, num_positions, hidden_size = x.size()
+        spatial_dim = int(num_positions ** 0.5)  # For 729 positions, spatial_dim = 27
+
+        # Reshape to [batch_size, spatial_dim, spatial_dim, hidden_size]
+        x = x.view(batch_size, spatial_dim, spatial_dim, hidden_size)
+
+        # Pad if spatial dimensions are odd to make them even (required for 2x2 pooling)
+        if spatial_dim % 2 == 1:
+            x = F.pad(x, (0, 0, 0, 1, 0, 1))  # Pad height and width
+            spatial_dim += 1  # Increase spatial_dim since we've padded
+
+        # Rearrange to group patches into 2x2 regions
+        # Resulting shape: [batch_size, h, w, 4, hidden_size], where h and w are halved
+        x = rearrange(x, 'b (h dh) (w dw) c -> b h w (dh dw) c', dh=2, dw=2)
+
+        # Flatten the spatial dimensions and combine batch size for efficient computation
+        num_groups = (spatial_dim // 2) * (spatial_dim // 2)
+        x = x.view(batch_size * num_groups, 4, hidden_size)  # [batch_size * num_groups, 4, hidden_size]
+
+        # Compute the query as the mean over the patches in each group
+        query = x.mean(dim=1, keepdim=True)  # [batch_size * num_groups, 1, hidden_size]
+
+        # Apply multi-head attention
+        # Note: nn.MultiheadAttention expects inputs in shape [batch_size, seq_len, embed_dim] when batch_first=True
+        attn_output, attn_weights = self.attention_pool(query, x, x)
+        # attn_output shape: [batch_size * num_groups, 1, hidden_size]
+
+        # Reshape back to [batch_size, h, w, hidden_size]
+        h_w = spatial_dim // 2
+        attn_output = attn_output.view(batch_size, h_w, h_w, hidden_size)
+
+        # apply layer normalization
+        attn_output = self.layer_norm(attn_output)
+
+        # Flatten spatial dimensions to match the expected output shape
+        output = attn_output.view(batch_size, -1, hidden_size)  # [batch_size, new_num_positions, hidden_size]
+
+        return output
+    
 
 class MiphaMetaForCausalLM(ABC):
 
@@ -89,7 +147,8 @@ class MiphaMetaForCausalLM(ABC):
         flat_image_features = self.get_model().get_vision_tower()(flat_images) # shape: [total_num_images, 729, 1152]
         
         # # Apply pooling operation to projected features to get 27x27 patches down to 169 patches i.e 1/4 pooling strategy to halve the spatial dimensions (width and height)
-        flat_pooled_features = self.get_model().meanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 2560] down from [total_num_images, 729, 2560]
+        # flat_pooled_features = self.get_model().meanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 1152] down from [total_num_images, 729, 1152]
+        flat_pooled_features = self.get_model().attentionMeanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 1152] down from [total_num_images, 729, 1152]
         
         # Project image features to LLM hidden size (d_llm)
         flat_projected_features = self.get_model().mm_projector(flat_pooled_features) # shape of each element in the list: [total_num_images, 729, 2560]
