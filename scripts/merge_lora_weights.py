@@ -1,6 +1,6 @@
 import argparse
-from mipha.model.builder import load_pretrained_model
-from mipha.mm_utils import get_model_name_from_path
+from pixl.model.builder import load_pretrained_model
+from pixl.mm_utils import get_model_name_from_path
 
 
 def merge_lora(args):
