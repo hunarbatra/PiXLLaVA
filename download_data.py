@@ -19,15 +19,27 @@ from huggingface_hub import hf_hub_download, HfApi
     
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 
-def download_model_files(repo_id, local_dir):
+
+def download_model_files(repo_id, local_dir, space=False):
     os.makedirs(local_dir, exist_ok=True)
     api = HfApi()
-    files = api.list_repo_files(repo_id)
-    
+    file_kwargs = {'repo_id': repo_id}
+    if space:
+        file_kwargs['repo_type'] = 'space'
+    files = api.list_repo_files(**file_kwargs)
+
     for file in files:
         print(f'Downloading {file}...')
-        hf_hub_download(repo_id=repo_id, filename=file, local_dir=local_dir, local_dir_use_symlinks=False)
-        
+        kwargs = {}
+        kwargs['repo_id'] = repo_id
+        kwargs['filename'] = file
+        kwargs['local_dir'] = local_dir
+        kwargs['local_dir_use_symlinks'] = False
+        if space:
+            kwargs['repo_type'] = 'space'
+
+        hf_hub_download(**kwargs)
+
     print(f'Downloaded {len(files)} files from {repo_id}.')
     
 def download_siglip():
@@ -47,6 +59,19 @@ def download_mipha3b():
     local_dir = "ckpts/" + repo_id.split("/")[-1]
     
     download_model_files(repo_id, local_dir)
+    
+def download_ram_plus():
+    # repo_id = "xinyu1205/recognize-anything-plus-model"
+    repo_id = "hunarbatra/PiXLLaVA-YOLO-World-v2-xl"
+    local_dir = "ckpts/ram-plus"
+    
+    download_model_files(repo_id, local_dir)
+    
+def download_yolo_world():
+    repo_id = "stevengrove/YOLO-World"
+    local_dir = "ckpts/" + repo_id.split('/')[-1]
+
+    download_model_files(repo_id, local_dir, space=True)
 
 def download_file(url, local_filename, headers=None):
     """
@@ -170,7 +195,7 @@ def download_ocr_vqa_images(data, ocr_vqa_images_dir):
             if error:
                 print(error)
 
-def download_finetune_dataset(json_only=False):
+def download_finetune_dataset(json_only=False, download_all=True, download_dataset=''):
     os.makedirs('data/llava-finetune', exist_ok=True)
     images_root = 'data/llava-finetune/images'
     os.makedirs(images_root, exist_ok=True)
@@ -192,8 +217,6 @@ def download_finetune_dataset(json_only=False):
     if json_only:
         return
 
-    download_tasks = []
-
     # 1. COCO Dataset
     def download_coco():
         print('Starting Coco download')
@@ -204,8 +227,6 @@ def download_finetune_dataset(json_only=False):
             print('Downloading and extracting COCO dataset...')
             download_and_extract_zip_hf_transfer(coco_url, coco_extract_to, zip_filename="coco_temp.zip")
             print('COCO dataset downloaded and extracted.')
-
-    download_tasks.append(download_coco)
 
     # 2. GQA Dataset
     def download_gqa():
@@ -218,8 +239,6 @@ def download_finetune_dataset(json_only=False):
             download_and_extract_zip_hf_transfer(gqa_url, gqa_extract_to, zip_filename="cqa_temp.zip")
             print('GQA dataset downloaded and extracted.')
 
-    download_tasks.append(download_gqa)
-
     # 3. OCR-VQA Dataset
     def download_ocr_vqa():
         print('Starting OCR download')
@@ -231,8 +250,6 @@ def download_finetune_dataset(json_only=False):
             download_and_extract_zip_hf_transfer(ocr_vqa_url, ocr_vqa_extract_to, zip_filename="ocr_temp.zip")
             print('OCR-VQA dataset downloaded and extracted.')
 
-    download_tasks.append(download_ocr_vqa)
-
     # 4. TextVQA Dataset
     def download_textvqa():
         print('Starting TextVQA download')
@@ -243,8 +260,6 @@ def download_finetune_dataset(json_only=False):
             print('Downloading and extracting TextVQA dataset...')
             download_and_extract_zip_hf_transfer(textvqa_url, textvqa_extract_to, zip_filename="textvqa_temp.zip")
             print('TextVQA dataset downloaded and extracted.')
-
-    download_tasks.append(download_textvqa)
 
     # 5. Visual Genome Dataset
     def download_vg():
@@ -261,19 +276,43 @@ def download_finetune_dataset(json_only=False):
                 download_and_extract_zip_hf_transfer(vg_url, vg_extract_to, zip_filename="vg_temp.zip")
                 print(f'Visual Genome dataset from {vg_url} downloaded and extracted.')
 
-    download_tasks.append(download_vg)
+    def individual_dataset_download(dataset_name):
+        print(f'Downloading single dataset: {dataset_name}...')
+        if dataset_name == 'coco':
+            download_coco()
+        elif dataset_name == 'gqa':
+            download_gqa()
+        elif dataset_name == 'ocr_vqa':
+            download_ocr_vqa()
+        elif dataset_name == 'textvqa':
+            download_textvqa()
+        elif dataset_name == 'vg':
+            download_vg()
+        else:
+            raise ValueError(f'Invalid dataset name: {dataset_name}')
+    
+    if not download_all and download_dataset:
+        individual_dataset_download(download_dataset)
+    elif download_all:
+        download_tasks = []
+        download_tasks.append(download_coco)
+        download_tasks.append(download_gqa)
+        download_tasks.append(download_ocr_vqa)
+        download_tasks.append(download_textvqa) 
+        download_tasks.append(download_vg)
+        
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            dataset_futures = {executor.submit(task): task.__name__ for task in download_tasks}
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        dataset_futures = {executor.submit(task): task.__name__ for task in download_tasks}
+            for future in as_completed(dataset_futures):
+                task_name = dataset_futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f'Error in {task_name}: {e}')
 
-        for future in as_completed(dataset_futures):
-            task_name = dataset_futures[future]
-            try:
-                future.result()
-            except Exception as e:
-                print(f'Error in {task_name}: {e}')
-
-    print('\nAll datasets have been downloaded and organized successfully.')
+        print('\nAll datasets have been downloaded and organized successfully.')
+    
     
 def download_eval_dataset(download_all=True, download_dataset=''):
     root_path = 'playground/data/eval'
@@ -504,12 +543,14 @@ def coco_data_test():
     
 if __name__ == '__main__':
     fire.Fire({
-        'pretrain_data': download_pretrain_dataset, # eg usage: python setup.py pretrain_data
+        'pretrain_data': download_pretrain_dataset, # eg usage: python download_data.py pretrain_data
         'finetune_data': download_finetune_dataset,
         'eval_data': download_eval_dataset,
         'coco_data_test': coco_data_test,
         'download_siglip': download_siglip,
         'download_phi2': download_phi2,
         'download_mipha3b': download_mipha3b,
+        'download_ram_plus': download_ram_plus,
+        'download_yolo_world': download_yolo_world,
     })
     
