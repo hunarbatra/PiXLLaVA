@@ -132,11 +132,12 @@ def download_pretrain_dataset(json_only=False):
     
     os.makedirs('data/llava-pretrain', exist_ok=True)
     # URLs of the files to download
-    json_url = 'https://huggingface.co/datasets/hunarbatra/llava-pretrain-558k-object-coords/resolve/main/blip_laion_cc_sbu_558k_detr.json'
+    # json_url = 'https://huggingface.co/datasets/hunarbatra/llava-pretrain-558k-object-coords/resolve/main/blip_laion_cc_sbu_558k_detr.json'
+    json_url = 'https://huggingface.co/datasets/hunarbatra/PiXLLaVA-pretrain-558k-roi/resolve/main/blip_laion_cc_sbu_558k_detr_roi.json'
     images_zip_url = 'https://huggingface.co/datasets/liuhaotian/LLaVA-Pretrain/resolve/main/images.zip'
 
     # Local file paths
-    json_file_path = 'data/llava-pretrain/blip_laion_cc_sbu_558k_detr.json'
+    json_file_path = 'data/llava-pretrain/blip_laion_cc_sbu_558k_roi.json'
     images_zip_path = 'data/llava-pretrain/images.zip'
     images_extract_path = 'data/llava-pretrain/images'
     
@@ -145,7 +146,9 @@ def download_pretrain_dataset(json_only=False):
     print('Downloading JSON file...')
     if not os.path.exists(json_file_path):
         download_file(json_url, json_file_path, headers=headers)
-    print('JSON file downloaded to:', json_file_path)
+        print('JSON file downloaded to:', json_file_path)
+    else:
+        print(f'JSON file already exists at {json_file_path}, skipping download.')
     
     if json_only:
         return
@@ -201,8 +204,9 @@ def download_finetune_dataset(json_only=False, download_all=True, download_datas
     os.makedirs(images_root, exist_ok=True)
 
     # URLs of the files to download
-    json_url = 'https://huggingface.co/datasets/hunarbatra/llava-finetune-665k-object-coords/resolve/main/llava_v1_5_mix665k_detr.json'
-    json_file_path = 'data/llava-finetune/llava_v1_5_mix665k_detr.json'
+    # json_url = 'https://huggingface.co/datasets/hunarbatra/llava-finetune-665k-object-coords/resolve/main/llava_v1_5_mix665k_detr.json'
+    json_url = 'https://huggingface.co/datasets/hunarbatra/PiXLLaVA-finetune-665k-roi/resolve/main/llava_v1_5_mix665k_detr_roi.json'
+    json_file_path = 'data/llava-finetune/llava_v1_5_mix665k_roi.json'
 
     headers = {'Authorization': f'Bearer {os.getenv("HF_TOKEN")}'}
 
@@ -210,7 +214,9 @@ def download_finetune_dataset(json_only=False, download_all=True, download_datas
         print('Downloading fine-tuning JSON file...')
         if not os.path.exists(json_file_path):
             download_file(json_url, json_file_path, headers=headers)
-        print('JSON file downloaded to:', json_file_path)
+            print('JSON file downloaded to:', json_file_path)
+        else:
+            print(f'JSON file already exists at {json_file_path}, skipping download.')
         
     download_json()
     
