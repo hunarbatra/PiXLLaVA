@@ -4,16 +4,14 @@ export NCCL_DEBUG=WARN
 export DEEPSPEED_LOG_LEVEL=DEBUG
 
 ## vision_encoder
-#vision_encoder=openai/clip-vit-large-patch14-336
-# vision_encoder=google/siglip-so400m-patch14-384
 vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## gemma
-# model_dir=./ckpts/checkpoints-siglip/gemma_2b/MiphaGemma-v0-2b-pretrain
-# outputdir=./ckpts/checkpoints-siglip/gemma_2b/MiphaGemma-v0-2b-finetune
+# model_dir=./ckpts/checkpoints-siglip/gemma_2b/PIXLGemma-v2-2b-pretrain
+# outputdir=./ckpts/checkpoints-siglip/gemma_2b/PIXLGemma-v2-2b-finetune
 
 ## phi2
-model_name=PiXLLaVAPhi2-v1-3b
+model_name=PiXLLaVAPhi2-v2-3b
 model_dir=./ckpts/checkpoints-siglip/phi_2/${model_name}-pretrain
 outputdir=./ckpts/checkpoints-siglip/phi_2/${model_name}-finetune
 
@@ -33,12 +31,12 @@ cp $vision_encoder/preprocessor_config.json $outputdir
 
 # --lora_enable True --lora_r 128 --lora_alpha 256 \
 
-deepspeed --master_port 29600 mipha/train/train.py \
+deepspeed --master_port 29600 pixl/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --model_name_or_path $model_dir \
     --version v0 \
-    --data_path ./data/llava-finetune/llava_v1_5_mix665k_detr.json \
+    --data_path ./data/llava-finetune/llava_v1_5_mix665k_roi.json \
     --image_folder ./data/llava-finetune/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower False \
@@ -72,4 +70,4 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --dataloader_pin_memory True 
     
 
-cp $vision_encoder/preprocessor_config.json $outputdir/checkpoint-1
+# cp $vision_encoder/preprocessor_config.json $outputdir/checkpoint-1
