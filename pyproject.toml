@@ -30,7 +30,7 @@ dependencies = [
     "wheel", "datasets", 
     "hf-transfer", "huggingface_hub",
     "opencv-python",
-    "ell-ai",
+    "backoff", "openai", "anthropic",
 ]
 
 [project.urls]
