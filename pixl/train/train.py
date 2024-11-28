@@ -741,7 +741,7 @@ class LazySupervisedDataset(Dataset):
                 
                 if bboxes:
                     w, h, _ = image.shape
-                    max_crops = 10
+                    max_crops = 5
                     
                     for box in bboxes:
                         if len(box) != 4:
