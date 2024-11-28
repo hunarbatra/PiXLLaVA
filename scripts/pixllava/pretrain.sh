@@ -1,16 +1,14 @@
 #!/bin/bash
 
 ## vision_encoder
-#vision_encoder=openai/clip-vit-large-patch14-336
-# vision_encoder=google/siglip-so400m-patch14-384
 vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## gemma
-# model_dir=./ckpts/checkpoints-siglip/base_checkpoints/mipha_gemma
-# outputdir=./ckpts/checkpoints-siglip/gemma_2b/MiphaGemma-v0-2b-pretrain
+# model_dir=./ckpts/checkpoints-siglip/base_checkpoints/pixl_gemma
+# outputdir=./ckpts/checkpoints-siglip/gemma_2b/PIXLGemma-v2-2b-pretrain
 
 ## phi2
-model_name=PiXLLaVAPhi2-v1-3b-pretrain
+model_name=PiXLLaVAPhi2-v2-3b-pretrain
 model_dir=./ckpts/checkpoints-siglip/base_checkpoints/pixllava_phi_2
 outputdir=./ckpts/checkpoints-siglip/phi_2/$model_name
 
@@ -26,17 +24,18 @@ cp $vision_encoder/preprocessor_config.json $outputdir
 # num_gpus = 8
 # total global batch size = 32 * 1 * 8 = 256
 
-deepspeed --master_port 29600 mipha/train/train.py \
+deepspeed --master_port 29600 pixl/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $model_dir \
     --version plain \
-    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_detr.json \
+    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_roi.json \
     --image_folder ./data/llava-pretrain/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower True \
     --freeze_backbone True \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
+    --group_by_modality_length True \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 1 \
@@ -55,9 +54,10 @@ deepspeed --master_port 29600 mipha/train/train.py \
     --tf32 True \
     --model_max_length 8192 \
     --gradient_checkpointing True \
-    --dataloader_num_workers 4 \
+    --dataloader_num_workers 12 \
     --lazy_preprocess True \
     --report_to wandb \
-    --push_to_hub False
+    --push_to_hub False \
+    --dataloader_pin_memory True
 
-cp $vision_encoder/preprocessor_config.json $outputdir/checkpoint-1
+# cp $vision_encoder/preprocessor_config.json $outputdir/checkpoint-1
