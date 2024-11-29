@@ -128,6 +128,8 @@ class PIXLMetaModel:
         # Flatten spatial dimensions to match the expected output shape
         output = attn_output.view(batch_size, -1, hidden_size)  # [batch_size, new_num_positions, hidden_size]
 
+        print(f'attention pooling shape: {output.shape}')
+        
         return output
     
 
@@ -150,7 +152,10 @@ class PIXLMetaForCausalLM(ABC):
         
         # # Apply pooling operation to projected features to get 27x27 patches down to 169 patches i.e 1/4 pooling strategy to halve the spatial dimensions (width and height)
         # flat_pooled_features = self.get_model().meanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 1152] down from [total_num_images, 729, 1152]
-        flat_pooled_features = self.get_model().attentionMeanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 1152] down from [total_num_images, 729, 1152]
+        # flat_pooled_features = self.get_model().attentionMeanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 1152] down from [total_num_images, 729, 1152]
+        
+        flat_pooled_features = self.get_model().meanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 1152] down from [total_num_images, 729, 1152]
+        
         
         # Project image features to LLM hidden size (d_llm)
         flat_projected_features = self.get_model().mm_projector(flat_pooled_features) # shape of each element in the list: [total_num_images, 729, 2560]
