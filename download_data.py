@@ -49,8 +49,21 @@ def download_siglip():
     download_model_files(repo_id, local_dir)
     
 def download_phi2():
-    repo_id = "susnato/phi-2"
+    # repo_id = "susnato/phi-2"
+    repo_id = "microsoft/phi-2"
     local_dir = "ckpts/" + repo_id.split("/")[-1]
+    
+    download_model_files(repo_id, local_dir)
+    
+def download_phi35():
+    repo_id = "microsoft/Phi-3.5-mini-instruct"
+    local_dir = "ckpts/phi-35"
+    
+    download_model_files(repo_id, local_dir)
+    
+def download_phi3():
+    repo_id = "microsoft/Phi-3-mini-4k-instruct"
+    local_dir = "ckpts/phi-3"
     
     download_model_files(repo_id, local_dir)
     
@@ -558,5 +571,7 @@ if __name__ == '__main__':
         'download_mipha3b': download_mipha3b,
         'download_ram_plus': download_ram_plus,
         'download_yolo_world': download_yolo_world,
+        'download_phi35': download_phi35,
+        'download_phi3': download_phi3,
     })
     
