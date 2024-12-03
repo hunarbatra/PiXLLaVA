@@ -50,8 +50,8 @@ class PIXLMetaModel:
         assert self.hidden_size % self.num_heads == 0, f"hidden_size must be divisible by num_heads (got `hidden_size`: {self.hidden_size} and `num_heads`: {self.num_heads})."
         
         self.layer_norm_eps = config.vision_config['vision_tower'].get('layer_norm_eps', 1e-6)
-        self.layer_norm = nn.LayerNorm(self.hidden_size, eps=self.layer_norm_eps)
-        self.proj_layer_norm = nn.LayerNorm(self.proj_hidden_size, eps=self.layer_norm_eps)
+        self.layer_norm = nn.LayerNorm(self.hidden_size, eps=self.layer_norm_eps) # 1152
+        self.proj_layer_norm = nn.LayerNorm(self.proj_hidden_size, eps=self.layer_norm_eps) # 2560
         
         self.bbox_embedder = nn.Sequential(
             nn.Linear(4, self.proj_hidden_size), # [4, 2560]: d_{bbox} -> d_{LLM_hidden_dim}
@@ -99,7 +99,7 @@ class PIXLMetaModel:
 
         # Pad if spatial dimensions are odd to make them even (required for 2x2 pooling)
         if spatial_dim % 2 == 1:
-            x = F.pad(x, (0, 0, 0, 1, 0, 1))  # Pad height and width
+            x = F.pad(x, (0, 0, 0, 1, 0, 1))  # Pad height and width -- adds 1 padding to the bottom and right of the spatial dumensions, making spatial dim even (28) to ensure downsampling with 2x2 pooling without data loss
             spatial_dim += 1  # Increase spatial_dim since we've padded
 
         # Rearrange to group patches into 2x2 regions
@@ -110,7 +110,8 @@ class PIXLMetaModel:
         num_groups = (spatial_dim // 2) * (spatial_dim // 2)
         x = x.view(batch_size * num_groups, 4, hidden_size)  # [batch_size * num_groups, 4, hidden_size]
 
-        # Compute the query as the mean over the patches in each group
+        # Compute the query as the mean over the patches in each group - each group has 2x2 patches 
+        # we downsample 2x2 patch to 1x1 reducing height and width by half
         query = x.mean(dim=1, keepdim=True)  # [batch_size * num_groups, 1, hidden_size]
 
         # Apply multi-head attention
@@ -123,12 +124,10 @@ class PIXLMetaModel:
         attn_output = attn_output.view(batch_size, h_w, h_w, hidden_size)
 
         # apply layer normalization
-        attn_output = self.layer_norm(attn_output)
+        # attn_output = self.layer_norm(attn_output) # let's not add this now to closely match molmo's implementation
 
         # Flatten spatial dimensions to match the expected output shape
-        output = attn_output.view(batch_size, -1, hidden_size)  # [batch_size, new_num_positions, hidden_size]
-
-        print(f'attention pooling shape: {output.shape}')
+        output = attn_output.view(batch_size, -1, hidden_size)  # [batch_size, new_num_positions=196, hidden_size]
         
         return output
     
@@ -150,13 +149,9 @@ class PIXLMetaForCausalLM(ABC):
         flat_images = torch.cat(images, dim=0) # shape: [total_num_images, channels, height, width]
         flat_image_features = self.get_model().get_vision_tower()(flat_images) # shape: [total_num_images, 729, 1152]
         
-        # # Apply pooling operation to projected features to get 27x27 patches down to 169 patches i.e 1/4 pooling strategy to halve the spatial dimensions (width and height)
-        # flat_pooled_features = self.get_model().meanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 1152] down from [total_num_images, 729, 1152]
-        # flat_pooled_features = self.get_model().attentionMeanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 1152] down from [total_num_images, 729, 1152]
-        
-        flat_pooled_features = self.get_model().meanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 169, 1152] down from [total_num_images, 729, 1152]
-        
-        
+        # Apply pooling operation to projected features to get 27x27 patches down to 196 patches i.e 1/4 pooling strategy to halve the spatial dimensions (width and height)
+        flat_pooled_features = self.get_model().meanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 196, 1152] down from [total_num_images, 729, 1152]
+
         # Project image features to LLM hidden size (d_llm)
         flat_projected_features = self.get_model().mm_projector(flat_pooled_features) # shape of each element in the list: [total_num_images, 729, 2560]
         
