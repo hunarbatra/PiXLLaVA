@@ -92,6 +92,12 @@ def download_llama3_2_3b():
     
     download_model_files(repo_id, local_dir)
     
+def download_llama2_7b():
+    repo_id = "meta-llama/Llama-2-7b-chat-hf"
+    local_dir = "ckpts/llama2_7b"
+    
+    download_model_files(repo_id, local_dir)
+    
 def download_ram_plus():
     # repo_id = "xinyu1205/recognize-anything-plus-model"
     repo_id = "hunarbatra/PiXLLaVA-YOLO-World-v2-xl"
@@ -594,6 +600,7 @@ if __name__ == '__main__':
         'phi3': download_phi3,
         'llama31_8b': download_llama3_1_8b,
         'llama32_3b': download_llama3_2_3b,
-        "llama3_8b": download_llama3_8b,
+        'llama3_8b': download_llama3_8b,
+        'llama2_7b': download_llama2_7b,
     })
     
