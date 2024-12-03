@@ -58,9 +58,17 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             config=config,
             use_safetensors=True,
             **kwargs).to("cuda")
+    elif "llama" in model_name.lower():
+        print("load PIXL-Llama MSLM!!!")
+        config = PIXLlamaConfig.from_pretrained(model_path, trust_remote_code=True)
+        model = PIXLlamaForCausalLM.from_pretrained(
+            model_path,
+            config=config,
+            use_safetensors=True,
+            **kwargs).to("cuda")
     else:
         raise ValueError(f"Unknown model name: {model_name}. Your model name should containe one of ['phi-2', 'phi2',"
-                         f"'phi3', 'phi-3', 'gemma', phi1_5']")
+                         f"'phi3', 'phi-3', 'phi35', 'phi3_5', 'gemma', phi1_5', 'llama', 'llama-3', 'llama-3.1', 'llama-3.2']")
 
     if "clip" in config.vision_config["vision_tower"]["vision_model_name_or_path"]:
         image_processor = CLIPImageProcessor.from_pretrained(model_path)
@@ -71,7 +79,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
     else:
         return NotImplementedError
 
-    if 'phi' or "gemma" in model_name.lower():
+    if 'phi' or "gemma" or "llama"in model_name.lower():
         mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)
         mm_use_im_patch_token = getattr(model.config, "mm_use_im_patch_token", True)
 
