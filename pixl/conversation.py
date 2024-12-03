@@ -2,6 +2,10 @@ import dataclasses
 from enum import auto, Enum
 from typing import List, Tuple
 
+import base64
+from io import BytesIO
+from PIL import Image
+
 
 class SeparatorStyle(Enum):
     """Different separator style."""
@@ -60,6 +64,36 @@ class Conversation:
                     ret += role + ": " + message + seps[i % 2]
                 else:
                     ret += role + ":"
+        elif self.sep_style == SeparatorStyle.MPT:
+            ret = self.system + self.sep
+            for role, message in messages:
+                if message:
+                    if type(message) is tuple:
+                        message, _, _ = message
+                    ret += role + message + self.sep
+                else:
+                    ret += role
+        elif self.sep_style == SeparatorStyle.LLAMA_2:
+            wrap_sys = lambda msg: f"<<SYS>>\n{msg}\n<</SYS>>\n\n" if len(msg) > 0 else msg
+            wrap_inst = lambda msg: f"[INST] {msg} [/INST]"
+            ret = ""
+
+            for i, (role, message) in enumerate(messages):
+                if i == 0:
+                    assert message, "first message should not be none"
+                    assert role == self.roles[0], "first message should come from user"
+                if message:
+                    if type(message) is tuple:
+                        message, _, _ = message
+                    if i == 0: message = wrap_sys(self.system) + message
+                    if i % 2 == 0:
+                        message = wrap_inst(message)
+                        ret += self.sep + message
+                    else:
+                        ret += " " + message + " " + self.sep2
+                else:
+                    ret += ""
+            ret = ret.lstrip(self.sep)
         elif self.sep_style == SeparatorStyle.PLAIN:
             seps = [self.sep, self.sep2]
             ret = self.system
@@ -104,9 +138,6 @@ class Conversation:
         for i, (role, msg) in enumerate(self.messages[self.offset:]):
             if i % 2 == 0:
                 if type(msg) is tuple:
-                    import base64
-                    from io import BytesIO
-                    from PIL import Image
                     msg, image, image_process_mode = msg
                     if image_process_mode == "Pad":
                         def expand2square(pil_img, background_color=(122, 116, 104)):
@@ -223,17 +254,6 @@ conv_phi_3 = Conversation(
     sep2="<|end|>"
 )
 
-# conv_phi_3 = Conversation(
-#     system="<|system|>\nYou are a helpful AI assistant.",
-#     roles=("<|user|>\n", "<|assistant|>\n"),
-#     version="phi-3",
-#     messages=(),
-#     offset=0,
-#     sep_style=SeparatorStyle.PHI3,
-#     sep="",
-#     sep2="<|end|>\n"
-# )
-
 conv_phi_v0 = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
            "The assistant gives helpful, detailed, and polite answers to the user's questions.",
@@ -254,6 +274,7 @@ conv_llava_plain = Conversation(
     offset=0,
     sep_style=SeparatorStyle.PLAIN,
     sep="\n",
+    version="plain",
 )
 
 conv_gemma = Conversation(
@@ -291,18 +312,175 @@ conv_gemma_2 = Conversation(
     sep2="<eos>",
 )
 
-default_conversation = conv_phi_v0
+conv_vicuna_v1 = Conversation(
+    system="A chat between a curious user and an artificial intelligence assistant. "
+           "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+    roles=("USER", "ASSISTANT"),
+    version="v1",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.TWO,
+    sep=" ",
+    sep2="</s>",
+)
+
+conv_llama_2 = Conversation(
+    system="""You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+
+If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.""",
+    roles=("USER", "ASSISTANT"),
+    version="llama_v2",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.LLAMA_2,
+    sep="<s>",
+    sep2="</s>",
+)
+
+conv_llava_llama_2 = Conversation(
+    system="You are a helpful language and vision assistant. "
+           "You are able to understand the visual content that the user provides, "
+           "and assist the user with a variety of tasks using natural language.",
+    roles=("USER", "ASSISTANT"),
+    version="llama_v2",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.LLAMA_2,
+    sep="<s>",
+    sep2="</s>",
+)
+
+conv_mpt = Conversation(
+    system="""<|im_start|>system
+A conversation between a user and an LLM-based AI assistant. The assistant gives helpful and honest answers.""",
+    roles=("<|im_start|>user\n", "<|im_start|>assistant\n"),
+    version="mpt",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.MPT,
+    sep="<|im_end|>",
+)
+
+conv_llava_v0 = Conversation(
+    system="A chat between a curious human and an artificial intelligence assistant. "
+           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+    roles=("Human", "Assistant"),
+    messages=(
+    ),
+    offset=0,
+    sep_style=SeparatorStyle.SINGLE,
+    sep="###",
+)
+
+conv_llava_v0_mmtag = Conversation(
+    system="A chat between a curious user and an artificial intelligence assistant. "
+           "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
+           "The visual content will be provided with the following format: <Image>visual content</Image>.",
+    roles=("Human", "Assistant"),
+    messages=(
+    ),
+    offset=0,
+    sep_style=SeparatorStyle.SINGLE,
+    sep="###",
+    version="v0_mmtag",
+)
+
+conv_llava_v1 = Conversation(
+    system="A chat between a curious human and an artificial intelligence assistant. "
+           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+    roles=("USER", "ASSISTANT"),
+    version="v1",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.TWO,
+    sep=" ",
+    sep2="</s>",
+)
+
+conv_llava_v1_mmtag = Conversation(
+    system="A chat between a curious user and an artificial intelligence assistant. "
+           "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
+           "The visual content will be provided with the following format: <Image>visual content</Image>.",
+    roles=("USER", "ASSISTANT"),
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.TWO,
+    sep=" ",
+    sep2="</s>",
+    version="v1_mmtag",
+)
+
+conv_mistral_instruct = Conversation(
+    system="",
+    roles=("USER", "ASSISTANT"),
+    version="llama_v2",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.LLAMA_2,
+    sep="",
+    sep2="</s>",
+)
+
+conv_chatml_direct = Conversation(
+    system="""<|im_start|>system
+Answer the questions.""",
+    roles=("<|im_start|>user\n", "<|im_start|>assistant\n"),
+    version="mpt",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.MPT,
+    sep="<|im_end|>",
+)
+
+conv_llama3 = Conversation(
+    system="""<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nA chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.""",
+    roles=("<|start_header_id|>user<|end_header_id|>\n\n", "<|start_header_id|>assistant<|end_header_id|>\n\n"),
+    version="llama3",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.MPT,
+    sep="<|eot_id|>",
+) # based on: https://www.llama.com/docs/model-cards-and-prompt-formats/llama3_2/
+
+# default_conversation = conv_phi_v0
+default_conversation = conv_llama3
+
 conv_templates = {
-    "default": conv_phi_v0,
+    # "default": conv_phi_v0,
+    "default": conv_llama3,
     "v0": conv_phi_v0,
+    
+    "plain": conv_llava_plain,
+    
+    "v0_plain": conv_llava_plain,
+    "llava_v0": conv_llava_v0,
+    "v0_mmtag": conv_llava_v0_mmtag,
+    "llava_v1": conv_llava_v1,
+    "v1_mmtag": conv_llava_v1_mmtag,
+    "mpt": conv_mpt,
+    
     "phi": conv_phi_v0,
     "phi-1.5": conv_phi_v0,
     "phi-2": conv_phi_v0,
-    "gemma": conv_gemma_2,
     "phi-3": conv_phi_3,
     "phi3": conv_phi_3,
-
-    "plain": conv_llava_plain,
+    "phi-35": conv_phi_3,
+    "phi35": conv_phi_3,
+    
+    "mistral_instruct": conv_mistral_instruct,
+    "mistral_direct": conv_chatml_direct,
+    "chatml_direct": conv_chatml_direct,
+    
+    "gemma": conv_gemma_2,
+    
+    "llama_2": conv_llama_2,
+    "llava_llama_2": conv_llava_llama_2,
+    "llama3": conv_llama3,
+    "llama_3": conv_llama3,
+    "llama31": conv_llama3,
+    "llama3_1": conv_llama3,
+    "llama32": conv_llama3,
+    "llama3_2": conv_llama3,
 }
 
 if __name__ == "__main__":
