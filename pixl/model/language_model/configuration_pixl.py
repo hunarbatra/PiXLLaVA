@@ -1,6 +1,6 @@
 import os
 from typing import Union
-from transformers import PretrainedConfig, PhiConfig, Dinov2Config, GemmaConfig, GPTNeoXConfig, CONFIG_MAPPING, TOKENIZER_MAPPING
+from transformers import PretrainedConfig, PhiConfig, Dinov2Config, GemmaConfig, GPTNeoXConfig, CONFIG_MAPPING, TOKENIZER_MAPPING, LlamaConfig
 from transformers.utils import logging
 from transformers.utils.backbone_utils import get_aligned_output_features_output_indices
 from .phi3.modeling_phi3 import Phi3Config
@@ -164,7 +164,7 @@ class ProjectorConfig(PretrainedConfig):
 
         # get the vision config dict if we are loading from CLIPConfig
         if config_dict.get("model_type") == "pixl_phi" or config_dict.get("model_type") == "pixl_gemma" or \
-                config_dict.get("model_type") == "pixl_phi3":
+                config_dict.get("model_type") == "pixl_phi3" or config_dict.get("model_type") == "pixl_llama":
             config_dict = config_dict["vision_config"]["mm_projector"]
 
         if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
@@ -227,25 +227,20 @@ class PIXLPhi3Config(Phi3Config):
             self.vision_config = vision_config
 
         super().__init__(**kwargs)
+        
+        
+class PIXLlamaConfig(LlamaConfig):
+    model_type = "pixl_llama"
+    
+    def __init__(self, vision_config=None, **kwargs):
+        if vision_config is None:
+            self.vision_config = DEFAULT_VISUAL_CONFIG
+        else:
+            self.vision_config = vision_config
+            
+        super().__init__(**kwargs)
 
 
 if __name__ == "__main__":
     print(PIXLVisionConfig())
-
-    # CONFIG_MAPPING.register(PIXLPhi15Config.model_type, PIXLPhi15Config)
-    # CONFIG_MAPPING.register(PIXLGemmaConfig.model_type, PIXLGemmaConfig)
-    # CONFIG_MAPPING.register(PIXLPhiConfig.model_type, PIXLPhiConfig)
-    # CONFIG_MAPPING.register(PIXLPhi3Config.model_type, PIXLPhi3Config)
-    
-    # print(f"Registered config: {PIXLPhi15Config.model_type} -> {CONFIG_MAPPING[PIXLPhi15Config.model_type]}")
-    # print("Config mapping keys:", CONFIG_MAPPING.keys())
-    
-    # TOKENIZER_MAPPING.register(PIXLPhi15Config, (AutoTokenizer, AutoTokenizer))
-    # TOKENIZER_MAPPING.register(PIXLGemmaConfig, (AutoTokenizer, AutoTokenizer))
-    # TOKENIZER_MAPPING.register(PIXLPhiConfig, (AutoTokenizer, AutoTokenizer))
-    # TOKENIZER_MAPPING.register(PIXLPhi3Config, (AutoTokenizer, AutoTokenizer))
-    
-    # print(f"Registered tokenizer: {PIXLPhi15Config.model_type} -> {TOKENIZER_MAPPING[PIXLPhi15Config.model_type]}")
-    # print("Tokenizer mapping keys:", TOKENIZER_MAPPING.keys())
-
     
