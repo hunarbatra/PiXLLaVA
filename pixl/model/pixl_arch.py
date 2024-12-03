@@ -124,7 +124,7 @@ class PIXLMetaModel:
         attn_output = attn_output.view(batch_size, h_w, h_w, hidden_size)
 
         # apply layer normalization
-        # attn_output = self.layer_norm(attn_output) # let's not add this now to closely match molmo's implementation
+        attn_output = self.layer_norm(attn_output) # let's not add this now to closely match molmo's implementation
 
         # Flatten spatial dimensions to match the expected output shape
         output = attn_output.view(batch_size, -1, hidden_size)  # [batch_size, new_num_positions=196, hidden_size]
