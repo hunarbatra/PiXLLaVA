@@ -34,12 +34,12 @@ def filter_tags_anthropic(tags: str, prompt: str):
         model="claude-3-5-haiku-20241022",
         temperature=0.0,
         max_tokens=50,
+        system=TAG_FILTER_SYSTEM_PROMPT,
         messages=[
-            {"role": "system", "content": TAG_FILTER_SYSTEM_PROMPT},
             {"role": "user", "content": f"Prompt: {prompt}\nTags: {tags}\nRelevant Tags:"}
         ]
     )
-    return message.content
+    return message.content[0].text
 
 def process_tags_batch(prompts: list[dict], model='openai'):
     def worker(prompt_data):
