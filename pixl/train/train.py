@@ -1264,11 +1264,14 @@ def train():
         tokenizer.padding_side = 'right'
     elif 'phi2' in model_args.model_name_or_path or 'phi-2' in model_args.model_name_or_path or "phi_2" in model_args.model_name_or_path:
         tokenizer.pad_token = tokenizer.unk_token
-    elif 'llama' in model_args.model_name_or_path or 'llama-3' in model_args.model_name_or_path or "llama_3" in model_args.model_name_or_path:
+    elif 'llama-3' in model_args.model_name_or_path or 'llama_3' in model_args.model_name_or_path or 'llama3' in model_args.model_name_or_path:
         tokenizer.pad_token = tokenizer.eos_token
+        # llama3 does not have unk token, so we use eos token instead
         # will be ignored anyways if flash attention is being used
         # <|eot_id|> or <|end_of_text|> can be used as a pad token
         # reference: https://huggingface.co/meta-llama/Llama-2-7b-hf/discussions/101
+    elif 'llama-2' in model_args.model_name_or_path or 'llama_2' in model_args.model_name_or_path or 'llama2' in model_args.model_name_or_path:
+        tokenizer.pad_token = tokenizer.unk_token
     else:
         if tokenizer.pad_token is None:
             print(f"Adding pad token as '<pad>'")
