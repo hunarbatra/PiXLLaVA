@@ -18,11 +18,12 @@ from huggingface_hub import hf_hub_download, HfApi
     
     
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+HF_KEY = os.getenv('HF_TOKEN')
 
 
 def download_model_files(repo_id, local_dir, space=False):
     os.makedirs(local_dir, exist_ok=True)
-    api = HfApi()
+    api = HfApi(token=HF_KEY)
     file_kwargs = {'repo_id': repo_id}
     if space:
         file_kwargs['repo_type'] = 'space'
@@ -70,6 +71,24 @@ def download_phi3():
 def download_mipha3b():
     repo_id = "zhumj34/Mipha-3B"
     local_dir = "ckpts/" + repo_id.split("/")[-1]
+    
+    download_model_files(repo_id, local_dir)
+    
+def download_llama3_8b():
+    repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+    local_dir = "ckpts/llama3_8b"
+    
+    download_model_files(repo_id, local_dir)
+
+def download_llama3_1_8b():
+    repo_id = "meta-llama/Llama-3.1-8B-Instruct"
+    local_dir = "ckpts/llama31_8b"
+    
+    download_model_files(repo_id, local_dir)
+    
+def download_llama3_2_3b():
+    repo_id = "meta-llama/Llama-3.2-3B-Instruct"
+    local_dir = "ckpts/llama32_3b"
     
     download_model_files(repo_id, local_dir)
     
@@ -566,12 +585,15 @@ if __name__ == '__main__':
         'finetune_data': download_finetune_dataset,
         'eval_data': download_eval_dataset,
         'coco_data_test': coco_data_test,
-        'download_siglip': download_siglip,
-        'download_phi2': download_phi2,
-        'download_mipha3b': download_mipha3b,
-        'download_ram_plus': download_ram_plus,
-        'download_yolo_world': download_yolo_world,
-        'download_phi35': download_phi35,
-        'download_phi3': download_phi3,
+        'siglip': download_siglip,
+        'phi2': download_phi2,
+        'mipha3b': download_mipha3b,
+        'ram_plus': download_ram_plus,
+        'yolo_world': download_yolo_world,
+        'phi35': download_phi35,
+        'phi3': download_phi3,
+        'llama31_8b': download_llama3_1_8b,
+        'llama32_3b': download_llama3_2_3b,
+        "llama3_8b": download_llama3_8b,
     })
     
