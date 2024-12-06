@@ -20,11 +20,11 @@ cp $vision_encoder/preprocessor_config.json $outputdir
 # num_gpus = 8
 # total global batch size = 32 * 1 * 8 = 256
 
-deepspeed --master_port 29600 --include localhost:0,2 pixl/train/train.py \
+deepspeed --master_port 29600 --include localhost:1,2 pixl/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $model_dir \
     --version plain \
-    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_roi.json \
+    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_roi_100.json \
     --image_folder ./data/llava-pretrain/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower True \

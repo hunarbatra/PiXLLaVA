@@ -8,7 +8,7 @@ vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## phi3.5-3b
 model_name=PiXLLaVAPhi35-v2-3b
-model_dir=./ckpts/checkpoints-siglip/phi_35/${model_name}-pretrain
+model_dir=./ckpts/checkpoints-siglip/phi_35/${model_name}-pretrain/
 outputdir=./ckpts/checkpoints-siglip/phi_35/${model_name}-finetune
 
 # create output dir
@@ -27,11 +27,11 @@ cp $vision_encoder/preprocessor_config.json $outputdir
 
 # --lora_enable True --lora_r 128 --lora_alpha 256 \
 
-deepspeed --master_port 29600 --include localhost:0,1 pixl/train/train.py \
+deepspeed --master_port 29600 --include localhost:1,2 pixl/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --model_name_or_path $model_dir \
-    --version phi35 \
+    --version phi3 \
     --data_path ./data/llava-finetune/llava_v1_5_mix665k_roi_1k.json \
     --image_folder ./data/llava-finetune/images \
     --tune_mm_mlp_adapter True \

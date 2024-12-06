@@ -27,12 +27,12 @@ cp $vision_encoder/preprocessor_config.json $outputdir
 
 # --lora_enable True --lora_r 128 --lora_alpha 256 \
 
-deepspeed --master_port 29600 --include localhost:0,1 pixl/train/train.py \
+deepspeed --master_port 29600 --include localhost:1,2 pixl/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --model_name_or_path $model_dir \
-    --version phi-2 \
-    --data_path ./data/llava-finetune/llava_v1_5_mix665k_roi_1k.json \
+    --version v0 \
+    --data_path ./data/llava-finetune/llava_v1_5_mix665k_roi_10.json \
     --image_folder ./data/llava-finetune/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower False \
