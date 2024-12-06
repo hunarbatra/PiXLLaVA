@@ -29,7 +29,7 @@ deepspeed --master_port 29600 pixl/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --model_name_or_path $model_dir \
-    --version phi-2 \
+    --version v0 \
     --data_path ./data/llava-finetune/llava_v1_5_mix665k_roi.json \
     --image_folder ./data/llava-finetune/images \
     --tune_mm_mlp_adapter True \
