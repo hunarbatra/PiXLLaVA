@@ -1004,7 +1004,7 @@ def preprocess(
     elif conversation_lib.default_conversation.version == "llama3":
         return preprocess_llama3(sources, tokenizer, has_image=has_image)
     elif conversation_lib.default_conversation.version.startswith("gemma"):
-        return preprocess_gemma_1(sources, tokenizer, has_image=has_image)
+        return preprocess_gemma(sources, tokenizer, has_image=has_image)
     elif conversation_lib.default_conversation.version.startswith("v0"):
         return preprocess_v0(sources, tokenizer, has_image=has_image)
     elif conversation_lib.default_conversation.version == "phi3":
