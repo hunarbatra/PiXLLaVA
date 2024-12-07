@@ -100,7 +100,7 @@ def download_llama2_7b():
     
 def download_vicuna_llama2_7b():
     repo_id = "lmsys/vicuna-7b-v1.5"
-    local_dir = "ckpts/llama2_7b"
+    local_dir = "ckpts/vicuna_7b"
     
     download_model_files(repo_id, local_dir)
     
@@ -608,6 +608,6 @@ if __name__ == '__main__':
         'llama32_3b': download_llama3_2_3b,
         'llama3_8b': download_llama3_8b,
         'llama2_7b': download_llama2_7b,
-        'vicuna_llama2_7b': download_vicuna_llama2_7b,
+        'vicuna_7b': download_vicuna_llama2_7b,
     })
     
