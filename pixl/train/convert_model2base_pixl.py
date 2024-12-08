@@ -1091,7 +1091,7 @@ def train():
             config = PIXLPhiConfig.from_pretrained(model_args.model_name_or_path, trust_remote_code=True)
         elif "gemma" in model_args.model_name_or_path:
             config = PIXLGemmaConfig.from_pretrained(model_args.model_name_or_path, trust_remote_code=True)
-        elif "llama" in model_args.model_name_or_path:
+        elif "llama" in model_args.model_name_or_path or "vicuna" in model_args.model_name_or_path:
             config = PIXLlamaConfig.from_pretrained(model_args.model_name_or_path, trust_remote_code=True)
         else:
             raise NotImplemented
@@ -1145,7 +1145,7 @@ def train():
                 trust_remote_code=True,
                 **bnb_model_from_pretrained_args
             )
-        elif "llama" in model_args.model_name_or_path:
+        elif "llama" in model_args.model_name_or_path or "vicuna" in model_args.model_name_or_path:
             model = PIXLlamaForCausalLM.from_pretrained(
                 model_args.model_name_or_path,
                 config=config,
