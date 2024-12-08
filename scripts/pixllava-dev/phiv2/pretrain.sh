@@ -24,14 +24,14 @@ deepspeed --master_port 29600 --include localhost:1,2 pixl/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $model_dir \
     --version plain \
-    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_roi_100.json \
+    --data_path ./data/llava-pretrain/blip_laion_cc_sbu_558k_roi.json \
     --image_folder ./data/llava-pretrain/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower True \
     --freeze_backbone True \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
-    --group_by_modality_length True \
+    --group_by_modality_length False \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 1 \
