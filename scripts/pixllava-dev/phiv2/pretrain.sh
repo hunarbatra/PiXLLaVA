@@ -31,7 +31,7 @@ deepspeed --master_port 29600 --include localhost:1,2 pixl/train/train.py \
     --freeze_backbone True \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
-    --group_by_modality_length False \
+    --group_by_modality_length True \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 1 \
