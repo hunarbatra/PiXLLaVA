@@ -459,11 +459,13 @@ conv_templates = {
     
     "vicuna_v1": conv_vicuna_v1,
     "llama_2": conv_llama_2,
+    "llama2": conv_llama_2,
     "mistral_instruct": conv_mistral_instruct,
     "chatml_direct": conv_chatml_direct,
     "mistral": conv_chatml_direct,
     
     "llama3": conv_llama3,
+    "llama_3": conv_llama3,
     
     "mpt": conv_mpt,
     "v0_plain": conv_llava_plain,
