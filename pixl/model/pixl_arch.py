@@ -150,7 +150,7 @@ class PIXLMetaForCausalLM(ABC):
         flat_image_features = self.get_model().get_vision_tower()(flat_images) # shape: [total_num_images, 729, 1152]
         
         # Apply pooling operation to projected features to get 27x27 patches down to 196 patches i.e 1/4 pooling strategy to halve the spatial dimensions (width and height)
-        flat_pooled_features = self.get_model().meanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 196, 1152] down from [total_num_images, 729, 1152]
+        flat_pooled_features = self.get_model().attentionMeanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 196, 1152] down from [total_num_images, 729, 1152]
 
         # Project image features to LLM hidden size (d_llm)
         flat_projected_features = self.get_model().mm_projector(flat_pooled_features) # shape of each element in the list: [total_num_images, 729, 2560]
