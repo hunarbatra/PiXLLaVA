@@ -43,3 +43,4 @@ python pixl/train/convert_model2base_pixl.py \
     --lazy_preprocess True \
     --report_to wandb
     
+cp $vision_encoder/preprocessor_config.json  $outputdir
