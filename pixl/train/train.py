@@ -535,7 +535,8 @@ def preprocess_llama_2(
     tokenizer: transformers.PreTrainedTokenizer,
     has_image: bool = False
 ) -> Dict:
-    conv = conversation_lib.default_conversation.copy()
+    # conv = conversation_lib.default_conversation.copy()
+    conv = conversation_lib.conv_templates["llama_2"].copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
@@ -617,7 +618,8 @@ def preprocess_llama3(
     tokenizer: transformers.PreTrainedTokenizer,
     has_image: bool = False
 ) -> Dict:
-    conv = conversation_lib.default_conversation.copy()
+    # conv = conversation_lib.default_conversation.copy()
+    conv = conversation_lib.conv_templates["llama_3"].copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
@@ -705,7 +707,8 @@ def preprocess_mpt(
     tokenizer: transformers.PreTrainedTokenizer,
     has_image: bool = False
 ) -> Dict:
-    conv = conversation_lib.default_conversation.copy()
+    # conv = conversation_lib.default_conversation.copy()
+    conv = conversation_lib.conv_templates["mpt"].copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
@@ -984,7 +987,7 @@ def preprocess_plain(
         labels=targets
     )
 
-def preprocess_vicuna(
+def preprocess_vicuna( # same as v0
     sources,
     tokenizer: transformers.PreTrainedTokenizer,
     has_image: bool = False
@@ -1468,10 +1471,13 @@ def train():
     )
     if "phi3" in model_args.model_name_or_path or "phi-3" in model_args.model_name_or_path or "phi_3" in model_args.model_name_or_path:
         tokenizer.pad_token = tokenizer.unk_token  # use unk rather than eos token to prevent endless generation
+        # although phi-3 has a pad_token set to <|endoftext|> 
         tokenizer.pad_token_id = tokenizer.convert_tokens_to_ids(tokenizer.pad_token)
         tokenizer.padding_side = 'right'
     elif 'phi2' in model_args.model_name_or_path or 'phi-2' in model_args.model_name_or_path or "phi_2" in model_args.model_name_or_path:
         tokenizer.pad_token = tokenizer.unk_token
+        tokenizer.pad_token_id = tokenizer.convert_tokens_to_ids(tokenizer.pad_token)
+        tokenizer.padding_side = 'right'
     elif 'llama-3' in model_args.model_name_or_path or 'llama_3' in model_args.model_name_or_path or 'llama3' in model_args.model_name_or_path:
         tokenizer.pad_token = tokenizer.eos_token
         # llama3 does not have unk token, so we use eos token instead
@@ -1483,11 +1489,17 @@ def train():
     else:
         if tokenizer.pad_token is None:
             print(f"Adding pad token as '<pad>'")
-            smart_tokenizer_and_embedding_resize(
-                special_tokens_dict=dict(pad_token="<pad>"),
-                tokenizer=tokenizer,
-                model=model,
-            )
+            try:
+                smart_tokenizer_and_embedding_resize(
+                    special_tokens_dict=dict(pad_token="<pad>"),
+                    tokenizer=tokenizer,
+                    model=model,
+                )
+            except Exception as e:
+                if tokenizer.unk_token:
+                    tokenizer.pad_token = tokenizer.unk_token
+                else:
+                    print(f"Padding token not found in tokenizer: {tokenizer}")
 
     if model_args.version in conversation_lib.conv_templates:
         conversation_lib.default_conversation = conversation_lib.conv_templates[model_args.version]
