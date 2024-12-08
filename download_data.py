@@ -49,6 +49,12 @@ def download_siglip():
     
     download_model_files(repo_id, local_dir)
     
+def download_clip():
+    repo_id = "openai/clip-vit-large-patch14-336"
+    local_dir = "ckpts/" + "clip-336"
+    
+    download_model_files(repo_id, local_dir)
+    
 def download_phi2():
     # repo_id = "susnato/phi-2"
     repo_id = "microsoft/phi-2"
@@ -598,6 +604,7 @@ if __name__ == '__main__':
         'eval_data': download_eval_dataset,
         'coco_data_test': coco_data_test,
         'siglip': download_siglip,
+        'clip': download_clip,
         'phi2': download_phi2,
         'mipha3b': download_mipha3b,
         'ram_plus': download_ram_plus,
