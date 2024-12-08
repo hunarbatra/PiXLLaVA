@@ -1158,18 +1158,18 @@ def train():
         rank0_print(model)
 
         if "clip" in model_args.vision_tower:
-            print("load clip model weights from bin file.")
+            # print("load clip model weights from bin file.")
             clip_or_siglip_model_param = torch.load(os.path.join(model_args.vision_tower, "pytorch_model.bin"),
                                                     map_location='cpu')
         elif "siglip" in model_args.vision_tower:
             from safetensors import safe_open
-            print("load siglip model weights from safetensors file.")
+            # print("load siglip model weights from safetensors file.")
             clip_or_siglip_model_param = {}
             with safe_open(os.path.join(model_args.vision_tower, "model.safetensors"), framework="pt", device=0) as f:
                 for k in f.keys():
                     clip_or_siglip_model_param[k] = f.get_tensor(k)
         elif "dinov2" in model_args.vision_tower:
-            print("load dinov2 model weights from bin file.")
+            # print("load dinov2 model weights from bin file.")
             clip_or_siglip_model_param = torch.load(os.path.join(model_args.vision_tower, "pytorch_model.bin"),
                                                     map_location='cpu')
         else:
@@ -1257,9 +1257,10 @@ def train():
                                               data_args=data_args)
 
     trainer = PIXLTrainer(model=model,
-                           tokenizer=tokenizer,
-                           args=training_args,
-                           **data_module)
+                        #    tokenizer=tokenizer, 
+                        processing_class=tokenizer,
+                        args=training_args,
+                        **data_module)
     # integrate the MLLM
     trainer.save_state()
 
