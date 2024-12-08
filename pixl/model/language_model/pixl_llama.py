@@ -30,6 +30,7 @@ class PIXLlamaForCausalLM(LlamaPreTrainedModel, PIXLMetaForCausalLM):
     def __init__(self, config):
         super(LlamaPreTrainedModel, self).__init__(config)
         self.model = PIXLlamaModel(config)
+        self.pretraining_tp = config.pretraining_tp
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
