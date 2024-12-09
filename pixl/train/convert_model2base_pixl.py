@@ -1257,8 +1257,8 @@ def train():
                                               data_args=data_args)
 
     trainer = PIXLTrainer(model=model,
-                        #    tokenizer=tokenizer, 
-                        processing_class=tokenizer,
+                           tokenizer=tokenizer, 
+                        # processing_class=tokenizer,
                         args=training_args,
                         **data_module)
     # integrate the MLLM
