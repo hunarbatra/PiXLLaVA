@@ -32,7 +32,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         model = PIXLPhi3ForCausalLM.from_pretrained(
             model_path,
             config=config,
-            use_safetensors=True,
+            # use_safetensors=True,
             **kwargs).to("cuda")
     elif "phi2" in model_name.lower() or "phi-2" in model_name.lower():
         print("load PIXL-Phi2 MSLM!!!")
@@ -40,7 +40,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         model = PIXLPhiForCausalLM.from_pretrained(
             model_path,
             config=config,
-            use_safetensors=True,
+            # use_safetensors=True,
             **kwargs).to("cuda")
     elif "phi1_5" in model_name.lower():
         print("load PIXL-Phi1.5 MSLM!!!")
@@ -48,7 +48,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         model = PIXLPhi15ForCausalLM.from_pretrained(
             model_path,
             config=config,
-            use_safetensors=True,
+            # use_safetensors=True,
             **kwargs).to("cuda")
     elif "gemma" in model_name.lower():
         print("load PIXL-Gemma MSLM!!!")
@@ -56,7 +56,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         model = PIXLGemmaForCausalLM.from_pretrained(
             model_path,
             config=config,
-            use_safetensors=True,
+            # use_safetensors=True,
             **kwargs).to("cuda")
     elif "llama" in model_name.lower():
         print("load PIXL-Llama MSLM!!!")
@@ -64,7 +64,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         model = PIXLlamaForCausalLM.from_pretrained(
             model_path,
             config=config,
-            use_safetensors=True,
+            # use_safetensors=True,
             **kwargs).to("cuda")
     else:
         raise ValueError(f"Unknown model name: {model_name}. Your model name should containe one of ['phi-2', 'phi2',"
@@ -79,7 +79,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
     else:
         return NotImplementedError
 
-    if 'phi' or "gemma" or "llama"in model_name.lower():
+    if 'phi' in model_name.lower() or "gemma" in model_name.lower() or "llama" in model_name.lower():
         mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)
         mm_use_im_patch_token = getattr(model.config, "mm_use_im_patch_token", True)
 
@@ -96,7 +96,10 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         context_len = model.config.max_sequence_length
     else:
         context_len = 2048
+        
     model.to(device="cuda")
+    
     print(kwargs)
     # print(model)
+    
     return tokenizer, model, image_processor, context_len
