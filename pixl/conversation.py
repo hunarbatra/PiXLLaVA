@@ -457,6 +457,7 @@ conv_templates = {
 
     "plain": conv_llava_plain,
     
+    "vicuna": conv_vicuna_v1,
     "vicuna_v1": conv_vicuna_v1,
     "llama_2": conv_llama_2,
     "llama2": conv_llama_2,
