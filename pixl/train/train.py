@@ -1476,8 +1476,6 @@ def train():
         tokenizer.padding_side = 'right'
     elif 'phi2' in model_args.model_name_or_path or 'phi-2' in model_args.model_name_or_path or "phi_2" in model_args.model_name_or_path:
         tokenizer.pad_token = tokenizer.unk_token
-        tokenizer.pad_token_id = tokenizer.convert_tokens_to_ids(tokenizer.pad_token)
-        tokenizer.padding_side = 'right'
     elif 'llama-3' in model_args.model_name_or_path or 'llama_3' in model_args.model_name_or_path or 'llama3' in model_args.model_name_or_path:
         tokenizer.pad_token = tokenizer.eos_token
         # llama3 does not have unk token, so we use eos token instead
