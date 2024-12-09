@@ -111,14 +111,14 @@ def download_vicuna_llama2_7b():
     download_model_files(repo_id, local_dir)
     
 def download_ram_plus():
-    # repo_id = "xinyu1205/recognize-anything-plus-model"
-    repo_id = "hunarbatra/PiXLLaVA-YOLO-World-v2-xl"
+    repo_id = "xinyu1205/recognize-anything-plus-model"
     local_dir = "ckpts/ram-plus"
     
     download_model_files(repo_id, local_dir)
     
 def download_yolo_world():
-    repo_id = "stevengrove/YOLO-World"
+    # repo_id = "stevengrove/YOLO-World"
+    repo_id = "hunarbatra/PiXLLaVA-YOLO-World-v2-xl"
     local_dir = "ckpts/" + repo_id.split('/')[-1]
 
     download_model_files(repo_id, local_dir, space=True)
