@@ -414,23 +414,23 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         
         print('GQA dataset downloaded and extracted.')
     
-    # 3. VisWiz Dataset
-    def download_viswiz():
+    # 3. VizWiz Dataset
+    def download_vizwiz():
         test_zip_url = 'https://vizwiz.cs.colorado.edu/VizWiz_final/images/test.zip'
         test_json_url = 'https://vizwiz.cs.colorado.edu/VizWiz_final/vqa_data/Annotations.zip'
         
-        viswiz_extract_to = os.path.join(root_path, 'viswiz')
-        os.makedirs(viswiz_extract_to, exist_ok=True)
+        vizwiz_extract_to = os.path.join(root_path, 'vizwiz')
+        os.makedirs(vizwiz_extract_to, exist_ok=True)
         
         # download test.json
-        print('Downloading VisWiz test.json...')
-        download_and_extract_zip(test_json_url, os.path.join(viswiz_extract_to, 'Annotations.zip'))
+        print('Downloading VizWiz test.json...')
+        download_and_extract_zip(test_json_url, os.path.join(vizwiz_extract_to, 'Annotations.zip'))
         
         # download test.zip
-        print('Downloading VisWiz test.zip...')
-        download_and_extract_zip(test_zip_url, viswiz_extract_to, zip_filename='test.zip')
+        print('Downloading VizWiz test.zip...')
+        download_and_extract_zip(test_zip_url, vizwiz_extract_to, zip_filename='test.zip')
         
-        print('VisWiz dataset downloaded and extracted.')
+        print('VizWiz dataset downloaded and extracted.')
     
     # 4. ScienceQA Dataset
     def download_scienceqa():
@@ -563,6 +563,17 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         download_file(tsv_url, os.path.join(mmb_cn_extract_to, 'mmbench_dev_en_20231003.tsv'))
         
         print('MMBench-CN dataset downloaded and extracted.')
+        
+    # 11. MMBench Dataset
+    def download_mmbench():
+        tsv_url = 'https://download.openmmlab.com/mmclassification/datasets/mmbench/mmbench_dev_20230712.tsv'
+        
+        mmb_extract_to = os.path.join(root_path, 'mmbench')
+        
+        print('Downloading MMBench tsv file...')
+        download_file(tsv_url, os.path.join(mmb_extract_to, 'mmbench_dev_20230712.tsv'))
+        
+        print('MMBench dataset downloaded and extracted.')
     
     # 9. MMVet Dataset
     def download_mmvet():
@@ -595,8 +606,8 @@ def download_eval_dataset(download_all=True, download_dataset=''):
             download_vqav2()
         elif dataset_name == 'gqa':
             download_gqa()
-        elif dataset_name == 'viswiz':
-            download_viswiz()
+        elif dataset_name == 'vizwiz':
+            download_vizwiz()
         elif dataset_name == 'scienceqa':
             download_scienceqa()
         elif dataset_name == 'textvqa':
@@ -605,8 +616,8 @@ def download_eval_dataset(download_all=True, download_dataset=''):
             download_pope()
         elif dataset_name == 'mme':
             download_mme()
-        # elif dataset_name == 'mmbench':
-        #     download_mmbench()
+        elif dataset_name == 'mmbench':
+            download_mmbench()
         elif dataset_name == 'mmbench_cn':
             download_mmbench_cn()
         elif dataset_name == 'mmvet':
@@ -621,7 +632,7 @@ def download_eval_dataset(download_all=True, download_dataset=''):
     elif download_all:
         download_tasks.append(download_vqav2)
         download_tasks.append(download_gqa)
-        download_tasks.append(download_viswiz)
+        download_tasks.append(download_vizwiz)
         download_tasks.append(download_scienceqa)
         download_tasks.append(download_textvqa)
         download_tasks.append(download_pope)
