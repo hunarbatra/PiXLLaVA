@@ -10,7 +10,7 @@ from pixl.constants import DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DE
 
 
 def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, device_map="cuda",
-                          device="cuda"):
+                          device="cuda", flash_attn=False):
     kwargs = {"device_map": device_map}
     if load_8bit:
         kwargs['load_in_8bit'] = True
@@ -24,6 +24,10 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         )
     else:
         kwargs['torch_dtype'] = torch.float16
+        
+    if flash_attn:
+        kwargs['attn_implementation'] = "flash_attention_2"
+    
     print("load model from model_path: ", model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
     if "phi3" in model_name.lower() or "phi-3" in model_name.lower():
