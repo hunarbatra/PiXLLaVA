@@ -510,7 +510,26 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         save_images(dataset['popular'], 'popular')
         save_images(dataset['random'], 'random')
         
-        print("All images saved to pope/images")
+        json_url_1 = 'https://raw.githubusercontent.com/AoiDragon/POPE/e3e39262c85a6a83f26cf5094022a782cb0df58d/output/coco/coco_pope_adversarial.json'
+        json_url_2 = 'https://raw.githubusercontent.com/AoiDragon/POPE/e3e39262c85a6a83f26cf5094022a782cb0df58d/output/coco/coco_pope_popular.json'
+        json_url_3 = 'https://raw.githubusercontent.com/AoiDragon/POPE/e3e39262c85a6a83f26cf5094022a782cb0df58d/output/coco/coco_pope_random.json'
+        
+        pope_extract_to = os.path.join(root_path, 'pope/coco')
+        os.makedirs(pope_extract_to, exist_ok=True)
+        
+        # download coco_pope_adversarial.json
+        print('Downloading POPE coco_pope_adversarial.json...')
+        download_file(json_url_1, os.path.join(pope_extract_to, 'coco_pope_adversarial.json'))
+        
+        # download coco_pope_popular.json
+        print('Downloading POPE coco_pope_popular.json...')
+        download_file(json_url_2, os.path.join(pope_extract_to, 'coco_pope_popular.json'))
+        
+        # download coco_pope_random.json
+        print('Downloading POPE coco_pope_random.json...')
+        download_file(json_url_3, os.path.join(pope_extract_to, 'coco_pope_random.json'))
+        
+        print('Pope dataset downloaded and extracted.')
     
     # 7. MME Dataset 
     def download_mme():
@@ -586,6 +605,8 @@ def download_eval_dataset(download_all=True, download_dataset=''):
             download_pope()
         elif dataset_name == 'mme':
             download_mme()
+        # elif dataset_name == 'mmbench':
+        #     download_mmbench()
         elif dataset_name == 'mmbench_cn':
             download_mmbench_cn()
         elif dataset_name == 'mmvet':
