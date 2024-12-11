@@ -512,9 +512,26 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         
         print("All images saved to pope/images")
     
-    # 7. MME Dataset # TODO
+    # 7. MME Dataset 
     def download_mme():
-        pass
+        images_url = 'https://huggingface.co/datasets/darkyarding/MME/resolve/main/MME_Benchmark_release_version.zip'
+        images_root = os.path.join(root_path, 'MME')
+        
+        os.makedirs(images_root, exist_ok=True)
+        download_and_extract_zip_hf_transfer(
+            images_url,
+            images_root,
+        )
+        
+        eval_tool_url = 'https://github.com/BradyFU/Awesome-Multimodal-Large-Language-Models/raw/Evaluation/tools/eval_tool.zip'
+        eval_tool_root = os.path.join(root_path, 'MME')
+        
+        download_and_extract_zip(
+            eval_tool_url,
+            eval_tool_root,
+        )
+        
+        print(f'MME dataset and eval tool have been downloaded and extracted to {root_path}/MME')
     
     # 8. MMBench-CN Dataset 
     def download_mmbench_cn():
