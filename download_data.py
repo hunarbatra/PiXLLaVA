@@ -558,9 +558,18 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         
         print('MMVet dataset downloaded and extracted.')
         
-    # 10. SEED-Bench Dataset # TODO
+    # 10. SEED-Bench Dataset 
     def download_seed_bench():
-        pass
+        images_url = 'https://huggingface.co/datasets/AILab-CVC/SEED-Bench/resolve/main/SEED-Bench-image.zip'
+        images_root = os.path.join(root_path, 'seed_bench')
+        
+        os.makedirs(images_root, exist_ok=True)
+        download_and_extract_zip_hf_transfer(
+            images_url,
+            images_root,
+        )
+        
+        print(f'SEED-Bench dataset has been downloaded and extracted to {root_path}/seed_bench')
     
     def individual_dataset_download(dataset_name):
         if dataset_name == 'vqav2':
