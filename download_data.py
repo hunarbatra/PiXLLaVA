@@ -600,6 +600,24 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         )
         
         print(f'SEED-Bench dataset has been downloaded and extracted to {root_path}/seed_bench')
+        
+    # 12. LLaVA-Bench Dataset
+    def download_llava_bench():
+        dataset_name = 'liuhaotian/llava-bench-in-the-wild'
+        dataset = load_dataset(dataset_name)
+
+        image_dir = os.path.join(root_path, 'llava-bench-in-the-wild/images')
+        os.makedirs(image_dir, exist_ok=True)
+
+        for i, record in enumerate(dataset['train']):
+            image = record['image'].convert('RGB')
+            file_path = os.path.join(image_dir, f"00{i+1}.jpg")
+
+            if isinstance(image, Image.Image):
+                image.save(file_path)
+            else:
+                print(f"Skipping record {i}: Image format not recognized.") 
+        print(f'Finished saving LLaVA bench (in the wild) dataset images')
     
     def individual_dataset_download(dataset_name):
         if dataset_name == 'vqav2':
@@ -624,8 +642,10 @@ def download_eval_dataset(download_all=True, download_dataset=''):
             download_mmvet()
         elif dataset_name == 'seed_bench':
             download_seed_bench()
+        elif dataset_name == 'llava_bench':
+            download_llava_bench()
         else:
-            raise ValueError(f'Invalid dataset name: {dataset_name}')
+            raise ValueError(f'Invalid dataset name: {dataset_name}. Please select from the following options: vqav2, gqa, vizwiz, scienceqa, textvqa, pope, mme, mmbench, mmbench_cn, mmvet, seed_bench, llava_bench')
         
     if not download_all and download_dataset:
         individual_dataset_download(download_dataset)
