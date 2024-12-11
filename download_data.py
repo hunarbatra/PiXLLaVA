@@ -118,7 +118,7 @@ def download_ram_plus():
     
 def download_yolo_world():
     # repo_id = "stevengrove/YOLO-World"
-    repo_id = "hunarbatra/PiXLLaVA-YOLO-World-v2-xl"
+    repo_id = "hunarbatra/YOLO-World"
     local_dir = "ckpts/" + repo_id.split('/')[-1]
 
     download_model_files(repo_id, local_dir, space=True)
@@ -463,7 +463,7 @@ def download_eval_dataset(download_all=True, download_dataset=''):
     def download_textvqa():
         json_url = 'https://dl.fbaipublicfiles.com/textvqa/data/TextVQA_0.5.1_val.json'
         
-        textvqa_extract_to = os.path.join(images_root, 'textvqa')
+        textvqa_extract_to = os.path.join(root_path, 'textvqa')
         os.makedirs(textvqa_extract_to, exist_ok=True)
         
         # download test.json
@@ -478,38 +478,49 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         
         print('TextVQA dataset downloaded and extracted.')
     
-    # 6. POPE Dataset # TODO
+    # 6. POPE Dataset
     def download_pope():
-        json_url_1 = 'https://raw.githubusercontent.com/AoiDragon/POPE/e3e39262c85a6a83f26cf5094022a782cb0df58d/output/coco/coco_pope_adversarial.json'
-        json_url_2 = 'https://raw.githubusercontent.com/AoiDragon/POPE/e3e39262c85a6a83f26cf5094022a782cb0df58d/output/coco/coco_pope_popular.json'
-        json_url_3 = 'https://raw.githubusercontent.com/AoiDragon/POPE/e3e39262c85a6a83f26cf5094022a782cb0df58d/output/coco/coco_pope_random.json'
+        dataset_id = "lmms-lab/POPE"
+        subset = "Full"
         
-        pope_extract_to = os.path.join(images_root, 'pope')
-        os.makedirs(pope_extract_to, exist_ok=True)
+        dataset = load_dataset(dataset_id, subset)
         
-        # download coco_pope_adversarial.json
-        print('Downloading POPE coco_pope_adversarial.json...')
-        download_file(json_url_1, os.path.join(pope_extract_to, 'coco_pope_adversarial.json'))
+        image_dir = os.path.join(root_path, 'pope', 'images')
+        os.makedirs(image_dir, exist_ok=True)
         
-        # download coco_pope_popular.json
-        print('Downloading POPE coco_pope_popular.json...')
-        download_file(json_url_2, os.path.join(pope_extract_to, 'coco_pope_popular.json'))
+        def save_images(split, split_name):
+            print(f"Saving images for {split_name} split...")
+            for i, record in enumerate(split):
+                image = record['image']  
+                image_source = record['image_source'] 
+                file_name = f"{image_source}.jpg"
+                file_path = os.path.join(image_dir, file_name)
+
+                try:
+                    if isinstance(image, Image.Image):  # If the image is a PIL Image
+                        image.save(file_path)
+                    else:
+                        print(f"Skipping record {i}: Image format not recognized.")
+                except Exception as e:
+                    print(f"Error saving image for record {i}: {e}")
+
+            print(f"Finished saving images for {split_name} split.")
+            
+        save_images(dataset['adversarial'], 'adversarial')
+        save_images(dataset['popular'], 'popular')
+        save_images(dataset['random'], 'random')
         
-        # download coco_pope_random.json
-        print('Downloading POPE coco_pope_random.json...')
-        download_file(json_url_3, os.path.join(pope_extract_to, 'coco_pope_random.json'))
-        
-        print('Pope dataset downloaded and extracted.')
+        print("All images saved to pope/images")
     
     # 7. MME Dataset # TODO
     def download_mme():
         pass
     
-    # 8. MMBench-CN Dataset # TODO
+    # 8. MMBench-CN Dataset 
     def download_mmbench_cn():
         tsv_url = 'https://download.openmmlab.com/mmclassification/datasets/mmbench/mmbench_dev_en_20231003.tsv'
         
-        mmb_cn_extract_to = os.path.join(images_root, 'mmbench_cn')
+        mmb_cn_extract_to = os.path.join(root_path, 'mmbench_cn')
         
         # download mmbench_dev_en_20231003.tsv
         print('Downloading MMBench-CN tsv file...')
@@ -521,7 +532,7 @@ def download_eval_dataset(download_all=True, download_dataset=''):
     def download_mmvet():
         json_url = 'https://github.com/yuweihao/MM-Vet/releases/download/v1/mm-vet.zip'
 
-        mmv_extract_to = os.path.join(images_root, 'mmvet')
+        mmv_extract_to = os.path.join(root_path, 'mm-vet')
         os.makedirs(mmv_extract_to, exist_ok=True)
         
         # download mm-vet.zip
