@@ -36,7 +36,7 @@ class ROISelection:
         #     print(f'filtered_tags: {tags}')
         # tags = filtered_tags
 
-        tags_list = [tag_str.split(', ') for tag_str in tags]
+        tags_list = [tag_str.split(', ') for tag_str in tags if tag_str is not None]
         max_length = max(len(tag_seq) for tag_seq in tags_list)
 
         padded_tags = [
