@@ -47,10 +47,11 @@ def process_tags_batch(prompts: list[dict], model='openai'):
             original_tags = prompt_data['tags']
             if model == 'openai':
                 filtered_tags = filter_tags_openai(prompt_data['tags'], prompt_data['prompt'])
+                return filtered_tags
             elif model == 'anthropic':
                 filtered_tags = filter_tags_anthropic(prompt_data['tags'], prompt_data['prompt'])
+                return filtered_tags
             # print(f'all_tags: {original_tags} | filtered_tags: {filtered_tags}')
-            return filtered_tags
         except Exception as e:
             print(f"Error processing prompt: {prompt_data['prompt']}: {e}")
             return e
