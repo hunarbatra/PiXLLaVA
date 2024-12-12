@@ -617,7 +617,20 @@ def download_eval_dataset(download_all=True, download_dataset=''):
                 image.save(file_path)
             else:
                 print(f"Skipping record {i}: Image format not recognized.") 
-        print(f'Finished saving LLaVA bench (in the wild) dataset images')
+                
+        q_json_url = 'https://huggingface.co/datasets/liuhaotian/llava-bench-in-the-wild/resolve/main/questions.jsonl'
+        q_json_save_path = os.path.join(root_path, 'llava-bench-in-the-wild/questions.jsonl')
+        download_file(q_json_url, q_json_save_path)
+        
+        context_json_url = 'https://huggingface.co/datasets/liuhaotian/llava-bench-in-the-wild/resolve/main/context.jsonl'
+        context_json_save_path = os.path.join(root_path, 'llava-bench-in-the-wild/context.jsonl')
+        download_file(context_json_url, context_json_save_path)
+        
+        answers_gpt4_json_url = 'https://huggingface.co/datasets/liuhaotian/llava-bench-in-the-wild/resolve/main/answers_gpt4.jsonl'
+        answers_gpt4_json_path = os.path.join(root_path, 'llava-bench-in-the-wild/answers_gpt4.jsonl')
+        download_file(answers_gpt4_json_url, answers_gpt4_json_path)
+        
+        print(f'LLaVA bench (in the wild) dataset has been downloaded and extracted to {root_path}/llava-bench-in-the-wild')
     
     def individual_dataset_download(dataset_name):
         if dataset_name == 'vqav2':
