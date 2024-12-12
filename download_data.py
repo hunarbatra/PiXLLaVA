@@ -86,6 +86,12 @@ def download_llavaphi3():
     
     download_model_files(repo_id, local_dir)
     
+def download_llavaphi3_ft():
+    repo_id = "MBZUAI/LLaVA-Phi-3-mini-4k-instruct-FT"
+    local_dir = "ckpts/" + repo_id.split("/")[-1]
+    
+    download_model_files(repo_id, local_dir)
+    
 def download_llama3_8b():
     repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
     local_dir = "ckpts/llama3_8b"
@@ -617,7 +623,9 @@ def download_eval_dataset(download_all=True, download_dataset=''):
 
         for i, record in enumerate(dataset['train']):
             image = record['image'].convert('RGB')
-            file_path = os.path.join(image_dir, f"00{i+1}.jpg")
+            file_idx = f'{i+1}'
+            file_idx = file_idx.zfill(3)
+            file_path = os.path.join(image_dir, f"{file_idx}.jpg")
 
             if isinstance(image, Image.Image):
                 image.save(file_path)
@@ -716,6 +724,7 @@ if __name__ == '__main__':
         'phi2': download_phi2,
         'mipha3b': download_mipha3b,
         'llavaphi3': download_llavaphi3,
+        'llavaphi3_ft': download_llavaphi3_ft,
         'ram_plus': download_ram_plus,
         'yolo_world': download_yolo_world,
         'phi35': download_phi35,
