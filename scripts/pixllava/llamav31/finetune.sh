@@ -7,7 +7,7 @@ export DEEPSPEED_LOG_LEVEL=DEBUG
 vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## llama-3.1-8b
-model_name=PiXLLaVALlama31-v2-8b
+model_name=PiXLLaVALlama31-8b
 model_dir=./ckpts/checkpoints-siglip/llama31_8b/${model_name}-pretrain
 outputdir=./ckpts/checkpoints-siglip/llama31_8b/${model_name}-finetune
 

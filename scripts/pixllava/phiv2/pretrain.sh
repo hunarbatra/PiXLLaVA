@@ -4,7 +4,7 @@
 vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## phi2-3b
-model_name=PiXLLaVAPhi2-v2-3b-pretrain
+model_name=PiXLLaVAPhi2-3b-pretrain
 model_dir=./ckpts/checkpoints-siglip/base_checkpoints/pixllava_phi_2
 outputdir=./ckpts/checkpoints-siglip/phi_2/$model_name
 
@@ -42,7 +42,7 @@ deepspeed --master_port 29600 pixl/train/train.py \
     --save_strategy "steps" \
     --save_steps 100 \
     --save_total_limit 1 \
-    --learning_rate 1e-2 \
+    --learning_rate 1e-3 \
     --weight_decay 0. \
     --warmup_ratio 0.03 \
     --lr_scheduler_type "cosine" \

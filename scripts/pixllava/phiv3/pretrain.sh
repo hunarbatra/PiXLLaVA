@@ -4,7 +4,7 @@
 vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## phi3-3b
-model_name=PiXLLaVAPhi3-v2-3b-pretrain
+model_name=PiXLLaVAPhi3-3b-pretrain
 model_dir=./ckpts/checkpoints-siglip/base_checkpoints/pixllava_phi_3
 outputdir=./ckpts/checkpoints-siglip/phi_3/$model_name
 

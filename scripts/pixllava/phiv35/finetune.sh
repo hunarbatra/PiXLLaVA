@@ -7,7 +7,7 @@ export DEEPSPEED_LOG_LEVEL=DEBUG
 vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## phi3.5-3b
-model_name=PiXLLaVAPhi35-v2-3b
+model_name=PiXLLaVAPhi35-3b
 model_dir=./ckpts/checkpoints-siglip/phi_35/${model_name}-pretrain
 outputdir=./ckpts/checkpoints-siglip/phi_35/${model_name}-finetune
 
