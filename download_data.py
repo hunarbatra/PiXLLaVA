@@ -80,6 +80,12 @@ def download_mipha3b():
     
     download_model_files(repo_id, local_dir)
     
+def download_llavaphi3():
+    repo_id = "MBZUAI/LLaVA-Phi-3-mini-4k-instruct"
+    local_dir = "ckpts/" + repo_id.split("/")[-1]
+    
+    download_model_files(repo_id, local_dir)
+    
 def download_llama3_8b():
     repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
     local_dir = "ckpts/llama3_8b"
@@ -709,6 +715,7 @@ if __name__ == '__main__':
         'clip': download_clip,
         'phi2': download_phi2,
         'mipha3b': download_mipha3b,
+        'llavaphi3': download_llavaphi3,
         'ram_plus': download_ram_plus,
         'yolo_world': download_yolo_world,
         'phi35': download_phi35,
