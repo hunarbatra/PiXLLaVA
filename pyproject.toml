@@ -31,6 +31,7 @@ dependencies = [
     "hf-transfer", "huggingface_hub",
     "opencv-python",
     "backoff", "openai", "anthropic",
+    "safetensors",
 ]
 
 [project.urls]
