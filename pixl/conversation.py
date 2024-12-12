@@ -447,6 +447,7 @@ conv_templates = {
     "phi": conv_phi_v0,
     "phi-1.5": conv_phi_v0,
     "phi-2": conv_phi_v0,
+    "phi_2": conv_phi_v0,
     
     "gemma_1": conv_gemma_1,
     "gemma": conv_gemma_2,
