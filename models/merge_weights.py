@@ -79,6 +79,7 @@ def merge_weights_lora(
     device_map: str = "cuda",
     device: str = "cuda",
     upload_to_hf: bool = False,
+    flash_attn: bool = False,
 ):
     kwargs = {"device_map": device_map}
     if load_8bit:
@@ -93,6 +94,9 @@ def merge_weights_lora(
         )
     else:
         kwargs["torch_dtype"] = torch.float16
+        
+    if flash_attn:
+        kwargs['attn_implementation'] = "flash_attention_2"
     
     pretrain_path = f'{model_path}-pretrain'
     finetune_path = f'{model_path}-finetune'
@@ -137,6 +141,7 @@ def merge_weights(
     device_map: str = "cuda",
     device: str = "cuda",
     upload_to_hf: bool = False,
+    flash_attn: bool = False,
 ):
     kwargs = {"device_map": device_map}
     if load_8bit:
@@ -151,6 +156,9 @@ def merge_weights(
         )
     else:
         kwargs["torch_dtype"] = torch.float16
+        
+    if flash_attn:
+        kwargs['attn_implementation'] = "flash_attention_2"
     
     pretrain_path = f'{model_path}-pretrain'
     finetune_path = f'{model_path}-finetune'
