@@ -7,7 +7,7 @@ export DEEPSPEED_LOG_LEVEL=DEBUG
 vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## llama-3.1-8b
-model_name=PiXLLaVALlama2-v2-7b
+model_name=PiXLLaVALlama2-7b
 model_dir=./ckpts/checkpoints-siglip/llama2_7b/${model_name}-pretrain
 outputdir=./ckpts/checkpoints-siglip/llama2_7b/${model_name}-finetune
 
@@ -32,7 +32,7 @@ deepspeed --master_port 29600 --include localhost:0,1 pixl/train/train.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --model_name_or_path $model_dir \
     --version llama3 \
-    --data_path ./data/llava-finetune/llava_v1_5_mix665k_roi_1k.json \
+    --data_path ./data/llava-finetune/llava_v1_5_mix665k_roi.json \
     --image_folder ./data/llava-finetune/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower False \

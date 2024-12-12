@@ -4,7 +4,7 @@
 vision_encoder=./ckpts/siglip-so400m-patch14-384
 
 ## llama-3.2-3b
-model_name=PiXLLaVALlama32-v2-3b-pretrain
+model_name=PiXLLaVALlama32-3b-pretrain
 model_dir=./ckpts/checkpoints-siglip/base_checkpoints/pixllava_llama32_3b
 outputdir=./ckpts/checkpoints-siglip/llama32_3b/$model_name
 
