@@ -31,13 +31,14 @@ def eval_model(args):
     disable_torch_init()
     model_path = os.path.expanduser(args.model_path)
     model_name = get_model_name_from_path(model_path)
-    tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name)
+    tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name, flash_attn=True)
 
     questions = [json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")]
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
     answers_file = os.path.expanduser(args.answers_file)
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
+    
     for line in tqdm(questions):
         idx = line["question_id"]
         image_file = line["image"]
@@ -47,25 +48,39 @@ def eval_model(args):
             qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs
         else:
             qs = DEFAULT_IMAGE_TOKEN + '\n' + qs
+            
+        ram_tags = line['ram_tags'] if 'ram_tags' in line else ''
+        select_tags = line['select_tags'] if 'select_tags' in line else ''
+        bboxes = line['bboxes'] if 'bboxes' in line else []
 
         conv = conv_templates[args.conv_mode].copy()
         conv.append_message(conv.roles[0], qs)
         conv.append_message(conv.roles[1], None)
         prompt = conv.get_prompt()
         input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+        attention_mask = input_ids != tokenizer.pad_token_id  # Generate attention mask for text
 
         image = Image.open(os.path.join(args.image_folder, image_file)).convert('RGB')
-        # image_tensor = process_images([image], image_processor, model.config)[0]
-        image_tensor = image_processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+        
+        img_path = os.path.join(args.image_folder, image_file)
+        image_tensor, bboxes_list = process_images(img_path, bboxes, image_processor, model.config)
+        
+        images = image_tensor.unsqueeze(0).half().cuda()[0]
+        bboxes_list = bboxes_list.unsqueeze(0).half().cuda()[0]
+        
+        images_list = [images]
+        bbox_list = [bboxes_list]
 
-        stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+        stop_str = conv.sep2 if conv.sep2 else conv.sep
         keywords = [stop_str]
-        stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
+        stopping_criteria = [KeywordsStoppingCriteria(keywords, tokenizer, input_ids)]
 
         with torch.inference_mode():
             output_ids = model.generate(
                 input_ids,
-                images=image_tensor.unsqueeze(0).half().cuda(),
+                # attention_mask=attention_mask,
+                images=images_list,
+                bbox_coords=bbox_list,
                 do_sample=True if args.temperature > 0 else False,
                 temperature=args.temperature,
                 top_p=args.top_p,
@@ -74,7 +89,8 @@ def eval_model(args):
                 eos_token_id=tokenizer.eos_token_id,  # End of sequence token
                 pad_token_id=tokenizer.eos_token_id,  # Pad token
                 max_new_tokens=1024,
-                use_cache=True
+                use_cache=True,
+                stopping_criteria=stopping_criteria,
             )
 
         input_token_len = input_ids.shape[1]
