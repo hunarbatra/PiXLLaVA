@@ -11,7 +11,7 @@ vision_encoder=./ckpts/siglip-so400m-patch14-384
 # outputdir=./ckpts/checkpoints-siglip/gemma_2b/PIXLGemma-v0-2b-finetune
 
 ## phi2
-model_name=PiXLLaVAPhi2-v2-3b
+model_name=PiXLLaVAPhi2-3b
 model_dir=./ckpts/checkpoints-siglip/phi_2/${model_name}-pretrain
 outputdir=./ckpts/checkpoints-siglip/phi_2/${model_name}-finetune
 
@@ -36,7 +36,7 @@ deepspeed --master_port 29600 pixl/train/train.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --model_name_or_path $model_dir \
     --version v0 \
-    --data_path ./data/llava-finetune/llava_v1_5_mix665k_detr_10.json \
+    --data_path ./data/llava-finetune/llava_v1_5_mix665k_roi.json \
     --image_folder ./data/llava-finetune/images \
     --tune_mm_mlp_adapter True \
     --freeze_vision_tower False \
