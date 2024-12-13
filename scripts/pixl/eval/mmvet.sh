@@ -1,18 +1,20 @@
 #!/bin/bash
 
-#model_name=PIXLGemma-v0-2b-finetune
-model_name=PIXLPhi2-v0-3b-finetune
-SLM=phi_2
+
+SLM=phi_35
+model_name=PiXLLaVAPhi35-v2-3b-merged
 VIT=siglip
+CONV_MODE=phi3
+
 MODELDIR=./ckpts/checkpoints-$VIT/$SLM/$model_name
 
 python -m pixl.eval.model_vqa \
     --model-path $MODELDIR \
-    --question-file ./playground/data/eval/mm-vet/llava-mm-vet.jsonl \
-    --image-folder ./playground/data/eval/mm-vet/images \
+    --question-file ./playground/data/eval/mm-vet/llava-mm-vet_roi.jsonl \
+    --image-folder ./playground/data/eval/mm-vet/mm-vet/images \
     --answers-file ./playground/data/eval/mm-vet/answers/$model_name.jsonl \
     --temperature 0 \
-    --conv-mode phi
+    --conv-mode $CONV_MODE
 
 mkdir -p ./playground/data/eval/mm-vet/results
 
