@@ -49,12 +49,13 @@ class CustomDataset(Dataset):
         conv.append_message(conv.roles[0], qs)
         conv.append_message(conv.roles[1], None)
         prompt = conv.get_prompt()
-        image = Image.open(os.path.join(self.image_folder, image_file)).convert('RGB')
-        image_tensor = process_images([image], self.image_processor, self.model_config)[0]
+        # image = Image.open(os.path.join(self.image_folder, image_file)).convert('RGB')
+        # image_tensor = process_images([image], self.image_processor, self.model_config)[0]
 
         input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')
 
-        return input_ids, image_tensor
+        # return input_ids, image_tensor
+        return input_ids
 
     def __len__(self):
         return len(self.questions)
@@ -73,7 +74,7 @@ def eval_model(args):
     disable_torch_init()
     model_path = os.path.expanduser(args.model_path)
     model_name = get_model_name_from_path(model_path)
-    tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name)
+    tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name, flash_attn=True)
     
     questions = [json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")]
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
@@ -87,25 +88,43 @@ def eval_model(args):
 
     data_loader = create_data_loader(questions, args.image_folder, tokenizer, image_processor, model.config)
     conv_ = conv_templates[args.conv_mode].copy()
-    stop_str = conv_.sep2
+    stop_str = conv_.sep2 if conv_.sep2 else conv_.sep
     keywords = [stop_str]
 
-    for (input_ids, image_tensor), line in tqdm(zip(data_loader, questions), total=len(questions)):
+    for (input_ids), line in tqdm(zip(data_loader, questions), total=len(questions)):
         idx = line["question_id"]
         cur_prompt = line["text"]
         
-        stop_str = conv_templates[args.conv_mode].sep if conv_templates[args.conv_mode].sep_style != SeparatorStyle.TWO else conv_templates[args.conv_mode].sep2
+        ram_tags = line['ram_tags'] if 'ram_tags' in line else ''
+        select_tags = line['select_tags'] if 'select_tags' in line else ''
+        bboxes = line['bboxes'] if 'bboxes' in line else []
+        
         input_ids = input_ids.to(device='cuda', non_blocking=True)
         stopping_criteria = [KeywordsStoppingCriteria(keywords, tokenizer, input_ids)]
+        # attention_mask = input_ids != tokenizer.pad_token_id  # Generate attention mask for text
+        
+        image_file = line["image"]
+        img_path = os.path.join(args.image_folder, image_file)
+
+        image_tensor, bboxes_list = process_images(img_path, bboxes, image_processor, model.config)
+        
+        images = image_tensor.unsqueeze(0).half().cuda()[0]
+        bboxes_list = bboxes_list.unsqueeze(0).half().cuda()[0]
+        
+        images_list = [images]
+        bbox_list = [bboxes_list]
+        
         with torch.inference_mode():
             output_ids = model.generate(
                 input_ids,
-                images=image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True),
+                # attention_mask=attention_mask,
+                images=images_list,
+                bbox_coords=bbox_list,
                 do_sample=True if args.temperature > 0 else False,
                 temperature=args.temperature,
-                top_p=args.top_p,
+                top_p=args.top_p, # TODO
                 # no_repeat_ngram_size=3,
-                num_beams=args.num_beams,
+                num_beams=args.num_beams, # TODO
                 max_new_tokens=128,
                 eos_token_id=tokenizer.eos_token_id,  # End of sequence token
                 pad_token_id=tokenizer.eos_token_id,  # Pad token
@@ -120,6 +139,7 @@ def eval_model(args):
             print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
         outputs = tokenizer.batch_decode(output_ids[:, input_token_len:], skip_special_tokens=True)[0]
         outputs = outputs.strip()
+        
         if outputs.endswith(stop_str):
             outputs = outputs[:-len(stop_str)]
         outputs = outputs.strip()
