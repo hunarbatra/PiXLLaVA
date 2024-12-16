@@ -13,9 +13,6 @@ from pixl.model import PIXLPhiForCausalLM, PIXLGemmaForCausalLM, PIXLPhi3ForCaus
 
 load_dotenv()
 
-HF_TOKEN = os.environ["HF_TOKEN"]
-HF_USERNAME = os.environ["HF_USERNAME"]
-
 
 def load_model(
     model_path: str = './ckpts/checkpoints-siglip/phi_35/PiXLLaVAPhi35-3b',
@@ -195,6 +192,10 @@ def upload_weights(
     merged_path: str = './ckpts/checkpoints-siglip/phi_35/PiXLLaVAPhi35-3b-merged'
 ):  
     print(f'Uploading merged model to Hugging Face Hub...')
+    
+    HF_TOKEN = os.environ["HF_TOKEN"]
+    HF_USERNAME = os.environ["HF_USERNAME"]
+
     api = HfApi(token=HF_TOKEN)
     repo_name = merged_path.split('/')[-1]
     username = HF_USERNAME
