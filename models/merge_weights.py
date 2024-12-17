@@ -1,5 +1,6 @@
 import os
 import fire
+import glob
 import torch
 import shutil
 
@@ -102,17 +103,27 @@ def merge_weights_lora(
     pretrain_model = load_model(model_path, pretrain_path, kwargs, device)
     
     # Load the fine-tuned model with the adapter
-    print(f"Loading LoRA fine-tuned model from {finetune_path}")
-    model = PeftModel.from_pretrained(pretrain_model, finetune_path, device_map=device_map, local_files_only=True)
+    try: 
+        print(f"Loading LoRA fine-tuned model and tokenizer from final checkpoint:{finetune_path}")
+        model = PeftModel.from_pretrained(model=pretrain_model, model_id=finetune_path, device_map=device_map, local_files_only=True)
+        tokenizer = AutoTokenizer.from_pretrained(finetune_path, use_fast=False, local_files_only=True)
+    except:
+        checkpoints = glob.glob(f'{finetune_path}/checkpoint-*')
+        if len(checkpoints) == 0:
+            raise ValueError(f"No checkpoints found in {finetune_path}")
 
+        # get the latest checkpoint
+        latest_ft_checkpoint = max(checkpoints, key=os.path.getctime)
+        print(f"Loading LoRA fine-tuned model and tokenizer from finetuned checkpoint: {latest_ft_checkpoint}")
+        
+        model = PeftModel.from_pretrained(model=pretrain_model, model_id=latest_ft_checkpoint, device_map=device_map, local_files_only=True)
+        tokenizer = AutoTokenizer.from_pretrained(latest_ft_checkpoint, use_fast=False, local_files_only=True)
+        
     # Merge LoRA weights into the base model
     print("Merging LoRA weights into the base model")
     model = model.merge_and_unload()
     print("Convert to FP16")
     model.to(torch.float16)
-            
-    # load the tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(finetune_path, use_fast=False, local_files_only=True)
 
     # Save the merged model
     print(f"Saving the merged model to {merged_path}")
