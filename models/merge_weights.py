@@ -6,7 +6,6 @@ import shutil
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig, AutoConfig
 from huggingface_hub import HfApi
 from dotenv import load_dotenv
-from safetensors.torch import load_file
 from peft import PeftModel
 
 from pixl.model import PIXLPhiForCausalLM, PIXLGemmaForCausalLM, PIXLPhi3ForCausalLM, PIXLlamaForCausalLM, PIXLPhi15ForCausalLM
@@ -104,7 +103,7 @@ def merge_weights_lora(
     
     # Load the fine-tuned model with the adapter
     print(f"Loading LoRA fine-tuned model from {finetune_path}")
-    model = PeftModel.from_pretrained(pretrain_model, finetune_path, device_map=device_map)
+    model = PeftModel.from_pretrained(pretrain_model, finetune_path, device_map=device_map, local_files_only=True)
 
     # Merge LoRA weights into the base model
     print("Merging LoRA weights into the base model")
@@ -113,7 +112,7 @@ def merge_weights_lora(
     model.to(torch.float16)
             
     # load the tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(finetune_path, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(finetune_path, use_fast=False, local_files_only=True)
 
     # Save the merged model
     print(f"Saving the merged model to {merged_path}")
