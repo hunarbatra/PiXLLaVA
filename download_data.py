@@ -611,6 +611,10 @@ def download_eval_dataset(download_all=True, download_dataset=''):
             images_root,
         )
         
+        answers_url = 'https://huggingface.co/datasets/AILab-CVC/SEED-Bench/resolve/main/SEED-Bench.json'
+        answers_save_path = os.path.join(root_path, 'seed_bench/SEED-Bench.json')
+        download_file(answers_url, answers_save_path)
+        
         print(f'SEED-Bench dataset has been downloaded and extracted to {root_path}/seed_bench')
         
     # 12. LLaVA-Bench Dataset
