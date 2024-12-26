@@ -6,6 +6,7 @@ import zipfile
 import shutil
 import json
 import urllib.request as ureq
+import pandas as pd
 
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoProcessor, AutoModelForZeroShotImageClassification
@@ -688,6 +689,56 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         
         print(f'Vstar bench dataset has been downloaded and extracted to {root_path}')
         
+    def download_mmvp():
+        root_path = 'playground/data/eval/mmvp'
+        os.makedirs(root_path, exist_ok=True)
+        
+        images_path = os.path.join(root_path, 'images')
+        os.makedirs(images_path, exist_ok=True)
+        base_img_req_url = 'https://huggingface.co/datasets/MMVP/MMVP/resolve/main/MMVP%20Images/'
+        
+        for i in range(1, 301):
+            req_path = f"{base_img_req_url}{i}.jpg"
+            save_path = f"{images_path}/{i}.jpg"
+            
+            # download_file(req_path, save_path)
+            
+        csv_url = 'https://huggingface.co/datasets/MMVP/MMVP/resolve/main/Questions.csv'
+        csv_path = os.path.join(root_path, 'Questions.csv')
+        download_file(csv_url, csv_path)
+        
+        df = pd.read_csv(csv_path)
+        df['image'] = [f"{i+1}.jpg" for i in range(len(df))]
+        
+        for i, row in df.iterrows():
+            options = row['Options']
+            options = options.replace('(a)', '(A)')
+            options = options.replace('(b)', '(B)')
+
+            options = options.split('(')
+            updated_options = ""
+            for o in options:
+                if o == '':
+                    continue
+                updated_options += f"({o.strip()}\n"
+
+            correct_ans = row['Correct Answer']
+            correct_ans = correct_ans.replace('(a)', 'A')
+            correct_ans = correct_ans.replace('(b)', 'B')
+
+            question = row['Question']
+            question = question + "\n" + updated_options + "Answer with the option's letter from the given choices directly."
+
+            # Update the DataFrame directly
+            df.at[i, 'Correct Answer'] = correct_ans
+            df.at[i, 'Question'] = question
+            df.at[i, 'Options'] = updated_options
+
+        df.rename(columns={'Index': 'question_id', 'Question': 'text', "Correct Answer": "label"}, inplace=True)
+        df.to_json(os.path.join(root_path, 'questions.jsonl'), orient='records', lines=True)
+        
+        print(f'MMVP dataset has been downloaded and extracted to {root_path}')
+        
     
     def individual_dataset_download(dataset_name):
         if dataset_name == 'vqav2':
@@ -716,6 +767,8 @@ def download_eval_dataset(download_all=True, download_dataset=''):
             download_llava_bench()
         elif dataset_name == 'vstar_bench':
             download_vstar_bench()
+        elif dataset_name == 'mmvp':
+            download_mmvp()
         else:
             raise ValueError(f'Invalid dataset name: {dataset_name}. Please select from the following options: vqav2, gqa, vizwiz, scienceqa, textvqa, pope, mme, mmbench, mmbench_cn, mmvet, seed_bench, llava_bench')
         
@@ -732,6 +785,8 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         download_tasks.append(download_mmbench_cn)
         download_tasks.append(download_mmvet)
         download_tasks.append(download_seed_bench)
+        download_tasks.append(download_llava_bench)
+        download_tasks.append(download_vstar_bench)
     
         with ThreadPoolExecutor(max_workers=10) as executor:
             dataset_futures = {executor.submit(task): task.__name__ for task in download_tasks}
