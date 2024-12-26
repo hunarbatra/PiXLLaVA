@@ -413,10 +413,15 @@ def upload_to_hf(data_type='pretrain', custom_file_path='', repo_id='hunarbatra/
     
     print(f'Uploaded {data_path} to {repo_id} on Hugging Face Hub')
     
-def preprocess_eval_science_qa(device='cuda', llm='openai'):
+def preprocess_eval_science_qa(device='cuda', llm='openai', resume=False):
     data_path = 'playground/data/eval/scienceqa/llava_test_CQM-A.json'
+    json_data_path = data_path.replace('.json', f'_roi.json')
     
-    data = json.load(open(data_path, "r"))
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        data = json.load(open(json_data_path, "r"))
+    else:
+        data = json.load(open(data_path, "r"))
     
     remove_yolo_folders() # clean
     roi_pipeline = ROISelection(device=device, llm=llm)
@@ -453,19 +458,23 @@ def preprocess_eval_science_qa(device='cuda', llm='openai'):
             
         # save the data to json_path
         if i % 10 == 0:
-            json_data_path = data_path.replace('.json', f'_roi.json')
             with open(json_data_path, 'w') as f:
                 json.dump(data, f)
         
     print(f'Preprocessed data saved to {data_path}')
     remove_yolo_folders() # remove YOLO-World folders
     
-def preprocess_eval_gqa(device='cuda', llm='openai'):
+def preprocess_eval_gqa(device='cuda', llm='openai', resume=False):
     data_path = 'playground/data/eval/gqa/llava_gqa_testdev_balanced.jsonl'
     json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
     
-    with open(data_path, 'r', encoding='utf-8') as f:
-        data = [json.loads(line.strip()) for line in f]
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
     
     remove_yolo_folders() # clean
     roi_pipeline = ROISelection(device=device, llm=llm)
@@ -509,14 +518,17 @@ def preprocess_eval_gqa(device='cuda', llm='openai'):
     print(f'Preprocessed data saved to {json_data_path}')
     remove_yolo_folders() # remove YOLO-World folders
     
-def preprocess_eval_mmvet(device='cuda', llm='openai'):
+def preprocess_eval_mmvet(device='cuda', llm='openai', resume=False):
     data_path = 'playground/data/eval/mm-vet/llava-mm-vet.jsonl'
     json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
     
-    # data = json.load(open(data_path, "r"))
-    # Open the file and read it line by line
-    with open(data_path, 'r', encoding='utf-8') as f:
-        data = [json.loads(line.strip()) for line in f]
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
     
     remove_yolo_folders() # clean
     roi_pipeline = ROISelection(device=device, llm=llm)
@@ -562,12 +574,17 @@ def preprocess_eval_mmvet(device='cuda', llm='openai'):
     print(f'Preprocessed data saved to {json_data_path}')
     remove_yolo_folders() # remove YOLO-World folders
     
-def preprocess_eval_pope(device='cuda', llm='openai'):
+def preprocess_eval_pope(device='cuda', llm='openai', resume=False):
     data_path = 'playground/data/eval/pope/llava_pope_test.jsonl'
     json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
     
-    with open(data_path, 'r', encoding='utf-8') as f:
-        data = [json.loads(line.strip()) for line in f]
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
         
     remove_yolo_folders()
     roi_pipeline = ROISelection(device=device, llm=llm)
@@ -611,12 +628,17 @@ def preprocess_eval_pope(device='cuda', llm='openai'):
     print(f'Preprocessed data saved to {json_data_path}')
     remove_yolo_folders() # remove YOLO-World folders
     
-def preprocess_eval_textvqa(device='cuda', llm='openai'):
+def preprocess_eval_textvqa(device='cuda', llm='openai', resume=False):
     data_path = 'playground/data/eval/textvqa/llava_textvqa_val_v051_ocr.jsonl'
     json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
     
-    with open(data_path, 'r', encoding='utf-8') as f:
-        data = [json.loads(line.strip()) for line in f]
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
         
     remove_yolo_folders()
     roi_pipeline = ROISelection(device=device, llm=llm)
@@ -660,12 +682,17 @@ def preprocess_eval_textvqa(device='cuda', llm='openai'):
     print(f'Preprocessed data saved to {json_data_path}')
     remove_yolo_folders() # remove YOLO-World folders
     
-def preprocess_eval_mme(device='cuda', llm='openai'):
+def preprocess_eval_mme(device='cuda', llm='openai', resume=False):
     data_path = 'playground/data/eval/MME/llava_mme.jsonl'
     json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
     
-    with open(data_path, 'r', encoding='utf-8') as f:
-        data = [json.loads(line.strip()) for line in f]
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
         
     remove_yolo_folders()
     roi_pipeline = ROISelection(device=device, llm=llm)
@@ -709,12 +736,17 @@ def preprocess_eval_mme(device='cuda', llm='openai'):
     print(f'Preprocessed data saved to {json_data_path}')
     remove_yolo_folders() # remove YOLO-World folders
     
-def preprocess_eval_seed_bench(device='cuda', llm='openai'):
+def preprocess_eval_seed_bench(device='cuda', llm='openai', resume=False):
     data_path = 'playground/data/eval/seed_bench/llava-seed-bench.jsonl'
     json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
     
-    with open(data_path, 'r', encoding='utf-8') as f:
-        data = [json.loads(line.strip()) for line in f]
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
         
     remove_yolo_folders()
     roi_pipeline = ROISelection(device=device, llm=llm)
@@ -757,12 +789,17 @@ def preprocess_eval_seed_bench(device='cuda', llm='openai'):
     print(f'Preprocessed data saved to {json_data_path}')
     remove_yolo_folders() # remove YOLO-World folders
     
-def preprocess_eval_llava_bench(device='cuda', llm='openai'):
+def preprocess_eval_llava_bench(device='cuda', llm='openai', resume=False):
     data_path = 'playground/data/eval/llava-bench-in-the-wild/questions.jsonl'
     json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
     
-    with open(data_path, 'r', encoding='utf-8') as f:
-        data = [json.loads(line.strip()) for line in f]
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
         
     remove_yolo_folders()
     roi_pipeline = ROISelection(device=device, llm=llm)
@@ -770,6 +807,112 @@ def preprocess_eval_llava_bench(device='cuda', llm='openai'):
     for i, sample in enumerate(tqdm(data, desc=f"Processing data")):
         if 'image' in sample:
             image_path = os.path.join('playground/data/eval/llava-bench-in-the-wild/images', sample['image'])
+            if not os.path.exists(image_path):
+                print(f"Image file {image_path} does not exist. Please download the images. Skipping.")
+                continue
+            
+            prompt = sample['text']
+            
+            if 'ram_tags' in sample.keys():
+                print(f'Image {image_path} already processed. Skipping.')
+                continue
+            
+            ram_tags, select_tags, bboxes = roi_pipeline(image_path, prompt)
+            sample['ram_tags'] = ram_tags
+            sample['select_tags'] = select_tags
+            # extract current bbox - we're processing single samples here - and convert from float32 to float
+            bboxes = [[float(coord) for coord in box] for box in bboxes[0]]
+            sample['bboxes'] = bboxes
+            
+            data[i] = sample
+        else:
+            print(f'Text only sample detected. Skipping.')
+            sample['ram_tags'] = ''
+            sample['select_tags'] = ''
+            sample['bboxes'] = []
+            
+            data[i] = sample
+            
+        # save the data to json_path
+        if i % 10 == 0:
+            with open(json_data_path, 'w') as f:
+                for item in data:
+                    f.write(json.dumps(item) + '\n')
+                    
+    print(f'Preprocessed data saved to {json_data_path}')
+    remove_yolo_folders() # remove YOLO-World folders
+    
+def preprocess_eval_vstar_bench(device='cuda', llm='openai', resume=False):
+    data_path = 'playground/data/eval/vstar_bench/test_questions.jsonl'
+    json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
+    
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
+        
+    remove_yolo_folders()
+    roi_pipeline = ROISelection(device=device, llm=llm)
+    
+    for i, sample in enumerate(tqdm(data, desc=f"Processing data")):
+        if 'image' in sample:
+            image_path = os.path.join('playground/data/eval/vstar_bench/images', sample['image'])
+            if not os.path.exists(image_path):
+                print(f"Image file {image_path} does not exist. Please download the images. Skipping.")
+                continue
+            
+            prompt = sample['text']
+            
+            if 'ram_tags' in sample.keys():
+                print(f'Image {image_path} already processed. Skipping.')
+                continue
+            
+            ram_tags, select_tags, bboxes = roi_pipeline(image_path, prompt)
+            sample['ram_tags'] = ram_tags
+            sample['select_tags'] = select_tags
+            # extract current bbox - we're processing single samples here - and convert from float32 to float
+            bboxes = [[float(coord) for coord in box] for box in bboxes[0]]
+            sample['bboxes'] = bboxes
+            
+            data[i] = sample
+        else:
+            print(f'Text only sample detected. Skipping.')
+            sample['ram_tags'] = ''
+            sample['select_tags'] = ''
+            sample['bboxes'] = []
+            
+            data[i] = sample
+            
+        # save the data to json_path
+        if i % 10 == 0:
+            with open(json_data_path, 'w') as f:
+                for item in data:
+                    f.write(json.dumps(item) + '\n')
+                    
+    print(f'Preprocessed data saved to {json_data_path}')
+    remove_yolo_folders() # remove YOLO-World folders
+    
+def preprocess_eval_mmvp(device='cuda', llm='openai', resume=False):
+    data_path = 'playground/data/eval/mmvp/questions.jsonl'
+    json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
+    
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
+        
+    remove_yolo_folders()
+    roi_pipeline = ROISelection(device=device, llm=llm)
+    
+    for i, sample in enumerate(tqdm(data, desc=f"Processing data")):
+        if 'image' in sample:
+            image_path = os.path.join('playground/data/eval/mmvp/images', sample['image'])
             if not os.path.exists(image_path):
                 print(f"Image file {image_path} does not exist. Please download the images. Skipping.")
                 continue
@@ -822,4 +965,6 @@ if __name__ == '__main__':
         'mme': preprocess_eval_mme,
         'seed_bench': preprocess_eval_seed_bench,
         'llava_bench': preprocess_eval_llava_bench,
+        'vstar_bench': preprocess_eval_vstar_bench,
+        'mmvp': preprocess_eval_mmvp,
     })
