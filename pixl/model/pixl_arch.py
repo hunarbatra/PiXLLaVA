@@ -58,11 +58,28 @@ class PIXLMetaModel:
             self.proj_layer_norm # [2560] - add post layer norm to normalize the bbox coords across samples
         )
         
+        # register the bbox embedder to the model vision_config
+        self.config.vision_config["bbox_embedder"] = {
+            "input_dim": 4,
+            "output_dim": self.proj_hidden_size,
+            "layer_norm_eps": self.layer_norm_eps,
+        }
+        
         self.attention_pool = nn.MultiheadAttention(
             embed_dim=self.hidden_size,
             num_heads=self.num_heads,
             batch_first=True  # uses (batch, seq, feature) for input and output tensors if set to true
         )
+        
+        # register the attention pooling layer to the model vision_config
+        self.config.vision_config["attention_pool"] = {
+            "embed_dim": self.hidden_size,
+            "num_heads": self.num_heads,
+            "batch_first": True,
+            "image_pooling_h": 2,
+            "image_pooling_w": 2,
+            "image_pooling_2d": "attention_mean_query_pooling",
+        }
 
     def get_vision_tower(self):
         vision_tower = getattr(self, 'vision_tower', None)
