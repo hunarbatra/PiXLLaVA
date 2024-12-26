@@ -80,6 +80,12 @@ def download_mipha3b():
     
     download_model_files(repo_id, local_dir)
     
+def download_paligemma2_3b():
+    repo_id = "google/paligemma2-3b-pt-224"
+    local_dir = "ckpts/" + repo_id.split("/")[-1]
+    
+    download_model_files(repo_id, local_dir)
+    
 def download_llavaphi3():
     repo_id = "MBZUAI/LLaVA-Phi-3-mini-4k-instruct"
     local_dir = "ckpts/" + repo_id.split("/")[-1]
@@ -649,6 +655,39 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         download_file(answers_gpt4_json_url, answers_gpt4_json_path)
         
         print(f'LLaVA bench (in the wild) dataset has been downloaded and extracted to {root_path}/llava-bench-in-the-wild')
+        
+    def download_vstar_bench():
+        dataset_name = 'craigwu/vstar_bench'
+        dataset = load_dataset(dataset_name)
+        
+        base_images_path = "https://huggingface.co/datasets/craigwu/vstar_bench/resolve/main/"
+        root_path = "playground/data/eval/vstar_bench"
+        base_save_path = os.path.join(root_path, "images")
+        images_paths = []
+        
+        os.makedirs(base_save_path, exist_ok=True)
+        
+        for i, record in enumerate(dataset['test']):
+            img_path = record['image']
+            
+            if img_path.split('.')[-1] == 'json':
+                continue
+            
+            req_path = base_images_path + img_path
+            save_path = f"{base_save_path}/{img_path}"
+            
+            save_root = os.path.dirname(save_path)
+            os.makedirs(save_root, exist_ok=True)
+            
+            download_file(req_path, save_path)
+            
+        json_url = "https://huggingface.co/datasets/craigwu/vstar_bench/resolve/main/test_questions.jsonl"
+        json_path = os.path.join(root_path, "test_questions.jsonl")
+        
+        download_file(json_url, json_path)
+        
+        print(f'Vstar bench dataset has been downloaded and extracted to {root_path}')
+        
     
     def individual_dataset_download(dataset_name):
         if dataset_name == 'vqav2':
@@ -675,6 +714,8 @@ def download_eval_dataset(download_all=True, download_dataset=''):
             download_seed_bench()
         elif dataset_name == 'llava_bench':
             download_llava_bench()
+        elif dataset_name == 'vstar_bench':
+            download_vstar_bench()
         else:
             raise ValueError(f'Invalid dataset name: {dataset_name}. Please select from the following options: vqav2, gqa, vizwiz, scienceqa, textvqa, pope, mme, mmbench, mmbench_cn, mmvet, seed_bench, llava_bench')
         
@@ -738,5 +779,6 @@ if __name__ == '__main__':
         'llama3_8b': download_llama3_8b,
         'llama2_7b': download_llama2_7b,
         'vicuna_7b': download_vicuna_llama2_7b,
+        'paligemma2_3b': download_paligemma2_3b,
     })
     
