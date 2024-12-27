@@ -2,6 +2,8 @@ import os
 import torch
 import asyncio
 
+from PIL import Image
+
 from models.yolo_world import YOLOWorldModel
 from models.ram_plus import RAMPlus
 from models.tag_filtering import process_tags_batch
@@ -13,7 +15,7 @@ class ROISelection:
         self.ram_model = RAMPlus(image_size=image_size, device=device)
         self.llm = llm
         
-    def forward(self, images: list[str] | str, prompts: list[str] | str, max_num_boxes:int=20, score_thr:float=0.05, nms_thr:float=0.5): # handles both, batches, and single images
+    def forward(self, images: list[str] | str | Image.Image, prompts: list[str] | str, max_num_boxes:int=20, score_thr:float=0.05, nms_thr:float=0.5): # handles both, batches, and single images
         # Run RAM++ model to get image tags
         torch.cuda.empty_cache()
         
