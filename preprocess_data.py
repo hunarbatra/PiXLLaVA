@@ -1055,6 +1055,63 @@ def preprocess_eval_mmbench(device='cuda', llm='openai', resume=False):
     print(f'Preprocessed data saved to {json_data_path}')
     remove_yolo_folders() # remove YOLO-World folders
     
+def preprocess_eval_spatial_bench(device='cuda', llm='openai', resume=False):
+    data_path = 'playground/data/eval/spatial_bench/spatial_bench.jsonl'
+    json_data_path = data_path.replace('.jsonl', f'_roi.jsonl')
+    
+    if resume:
+        print(f'Resuming from {json_data_path}')
+        with open(json_data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = [json.loads(line.strip()) for line in f]
+        
+    remove_yolo_folders()
+    roi_pipeline = ROISelection(device=device, llm=llm)
+    
+    for i, sample in enumerate(tqdm(data, desc=f"Processing data")):
+        if 'image' in sample:
+            image_path = os.path.join('playground/data/eval/spatial_bench', sample['image'])
+            if not os.path.exists(image_path):
+                print(f"Image file {image_path} does not exist. Please download the images. Skipping.")
+                continue
+            
+            prompt = sample['text']
+            
+            if 'ram_tags' in sample.keys():
+                print(f'Image {image_path} already processed. Skipping.')
+                continue
+            
+            ram_tags, select_tags, bboxes = roi_pipeline(image_path, prompt)
+            sample['ram_tags'] = ram_tags
+            sample['select_tags'] = select_tags
+            # extract current bbox - we're processing single samples here - and convert from float32 to float
+            bboxes = [[float(coord) for coord in box] for box in bboxes[0]]
+            sample['bboxes'] = bboxes
+            
+            data[i] = sample
+        else:
+            print(f'Text only sample detected. Skipping.')
+            sample['ram_tags'] = ''
+            sample['select_tags'] = ''
+            sample['bboxes'] = []
+            
+            data[i] = sample
+            
+        # save the data to json_path
+        if i % 10 == 0:
+            with open(json_data_path, 'w') as f:
+                for item in data:
+                    f.write(json.dumps(item) + '\n')
+                    
+    with open(json_data_path, 'w') as f:
+        for item in data:
+            f.write(json.dumps(item) + '\n')
+            
+    print(f'Preprocessed data saved to {json_data_path}')
+    remove_yolo_folders() # remove YOLO-World folders
+    
 
 if __name__ == '__main__':
     fire.Fire({
@@ -1075,4 +1132,5 @@ if __name__ == '__main__':
         'vstar_bench': preprocess_eval_vstar_bench,
         'mmvp': preprocess_eval_mmvp,
         'mmbench': preprocess_eval_mmbench,
+        'spatial_bench': preprocess_eval_spatial_bench,
     })
