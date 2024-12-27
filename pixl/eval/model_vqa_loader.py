@@ -72,6 +72,7 @@ def create_data_loader(questions, image_folder, tokenizer, image_processor, mode
 def eval_model(args):
     # Model
     disable_torch_init()
+    use_pixl = not args.no_pixl
     model_path = os.path.expanduser(args.model_path)
     model_name = get_model_name_from_path(model_path)
     tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name, flash_attn=True)
@@ -101,12 +102,12 @@ def eval_model(args):
         
         input_ids = input_ids.to(device='cuda', non_blocking=True)
         stopping_criteria = [KeywordsStoppingCriteria(keywords, tokenizer, input_ids)]
-        # attention_mask = input_ids != tokenizer.pad_token_id  # Generate attention mask for text
+        attention_mask = input_ids != tokenizer.pad_token_id  # Generate attention mask for text
         
         image_file = line["image"]
         img_path = os.path.join(args.image_folder, image_file)
 
-        image_tensor, bboxes_list = process_images(img_path, bboxes, image_processor, model.config)
+        image_tensor, bboxes_list = process_images(img_path, bboxes, image_processor, model.config, use_pixl=use_pixl)
         
         images = image_tensor.unsqueeze(0).half().cuda()[0]
         bboxes_list = bboxes_list.unsqueeze(0).half().cuda()[0]
@@ -117,14 +118,14 @@ def eval_model(args):
         with torch.inference_mode():
             output_ids = model.generate(
                 input_ids,
-                # attention_mask=attention_mask,
+                attention_mask=attention_mask,
                 images=images_list,
                 bbox_coords=bbox_list,
                 do_sample=True if args.temperature > 0 else False,
                 temperature=args.temperature,
-                top_p=args.top_p, # TODO
+                top_p=args.top_p, 
                 # no_repeat_ngram_size=3,
-                num_beams=args.num_beams, # TODO
+                num_beams=args.num_beams, 
                 max_new_tokens=128,
                 eos_token_id=tokenizer.eos_token_id,  # End of sequence token
                 pad_token_id=tokenizer.eos_token_id,  # Pad token
@@ -167,6 +168,7 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--num_beams", type=int, default=1)
+    parser.add_argument("--no-pixl", action="store_true", default=False)
     args = parser.parse_args()
 
     eval_model(args)
