@@ -15,11 +15,13 @@ from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from hf_transfer import download
-from huggingface_hub import hf_hub_download, HfApi
+from huggingface_hub import hf_hub_download, HfApi, login
     
     
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 HF_KEY = os.getenv('HF_TOKEN')
+
+login(token=HF_KEY)
 
 
 def download_model_files(repo_id, local_dir, space=False):
@@ -739,6 +741,59 @@ def download_eval_dataset(download_all=True, download_dataset=''):
         
         print(f'MMVP dataset has been downloaded and extracted to {root_path}')
         
+    def download_spatial_bench():
+        base_url = "https://huggingface.co/datasets/RussRobin/SpatialBench/resolve/main"
+        root_path = "playground/data/eval/spatial_bench"
+        
+        os.makedirs(root_path, exist_ok=True)
+        
+        tasks = ['counting', 'existence', 'positional', 'reach', 'size']
+        
+        all_data = []
+        
+        headers = {'Authorization': f'Bearer {os.getenv("HF_TOKEN")}'}
+        
+        file_count = 0
+        
+        for task in tasks:
+            json_url = f"{base_url}/{task}.json"
+            json_path = os.path.join(root_path, f"{task}.json")
+            download_file(json_url, json_path, headers=headers)
+            
+            data = json.load(open(json_path, "r"))
+            
+            for i, sample in enumerate(data):
+                image_path = sample['image']
+                img_save_path = os.path.join(root_path, image_path)
+        
+                img_req_url = f"{base_url}/{image_path}"
+                
+                img_root_dir = os.path.dirname(img_save_path)
+                os.makedirs(img_root_dir, exist_ok=True)
+                
+                if not os.path.exists(img_save_path):
+                    print(f"Downloading image {i+1} of {len(data)} for {task} task...")
+                    download_file(img_req_url, img_save_path, headers=headers)
+                
+                file_count += 1
+                sample['category'] = task
+                sample['text'] = sample['question']
+                sample['question_id'] = file_count
+                del sample['question']
+                
+                if task == 'existence':
+                    sample['text'] = sample['text'] + "\nAnswer with Yes or No directly."
+                
+                all_data.append(sample)
+                
+            print(f"Downloaded {len(data)} samples for {task} task.")
+            
+        with open(os.path.join(root_path, "spatial_bench.jsonl"), "w") as f:
+            for sample in all_data:
+                f.write(json.dumps(sample) + "\n")
+                
+        print(f"All data has been saved to {os.path.join(root_path, 'spatial_bench.jsonl')}")
+            
     
     def individual_dataset_download(dataset_name):
         if dataset_name == 'vqav2':
@@ -769,6 +824,8 @@ def download_eval_dataset(download_all=True, download_dataset=''):
             download_vstar_bench()
         elif dataset_name == 'mmvp':
             download_mmvp()
+        elif dataset_name == 'spatial_bench':
+            download_spatial_bench()
         else:
             raise ValueError(f'Invalid dataset name: {dataset_name}. Please select from the following options: vqav2, gqa, vizwiz, scienceqa, textvqa, pope, mme, mmbench, mmbench_cn, mmvet, seed_bench, llava_bench')
         
