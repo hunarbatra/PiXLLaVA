@@ -37,7 +37,7 @@ def expand2square(pil_img, background_color):
         result.paste(pil_img, ((height - width) // 2, 0))
         return result
 
-def process_images(image, bboxes, image_processor, model_cfg):
+def process_images(image, bboxes, image_processor, model_cfg, use_pixl=True):
     image_aspect_ratio = getattr(model_cfg, "image_aspect_ratio", None)
     image_crops = []
     bboxes_list = []
@@ -45,10 +45,11 @@ def process_images(image, bboxes, image_processor, model_cfg):
     # include the original image bbox
     bboxes_list.append([0.5, 0.5, 1.0, 1.0])
     
-    image = Image.open(image).convert('RGB')
+    if not isinstance(image, Image.Image):
+        image = Image.open(image).convert('RGB')
     
     # pad image to square if needed: default for 'image_aspect_ratio' is 'square'
-    if model_cfg.image_aspect_ratio == 'pad':
+    if use_pixl and model_cfg.image_aspect_ratio == 'pad':
         background_color = [int(x * 255) for x in model_cfg.image_processor.image_mean]
         image = expand2square(image, background_color)
         
@@ -57,22 +58,23 @@ def process_images(image, bboxes, image_processor, model_cfg):
     w, h = image.size
     max_crops = 5
     
-    for box in bboxes: 
-        x1, y1, x2, y2 = box
-        x_center = (x1 + x2) / 2 / w # get x center and normalize to image width
-        y_center = (y1 + y2) / 2 / h # get y center and normalize to image height
-        width = (x2 - x1) / w # get width and normalize to image width
-        height = (y2 - y1) / h # get height and normalize to image height
-        bbox = [x_center, y_center, width, height]
-        bboxes_list.append(bbox)
-        
-        # crop the image
-        crop_box = [int(x1), int(y1), int(x2), int(y2)]
-        image_crop = image.crop(crop_box)
-        image_crops.append(image_crop)
-        
-        if len(image_crops) == max_crops + 1:
-            break
+    if use_pixl:
+        for box in bboxes: 
+            x1, y1, x2, y2 = box
+            x_center = (x1 + x2) / 2 / w # get x center and normalize to image width
+            y_center = (y1 + y2) / 2 / h # get y center and normalize to image height
+            width = (x2 - x1) / w # get width and normalize to image width
+            height = (y2 - y1) / h # get height and normalize to image height
+            bbox = [x_center, y_center, width, height]
+            bboxes_list.append(bbox)
+            
+            # crop the image
+            crop_box = [int(x1), int(y1), int(x2), int(y2)]
+            image_crop = image.crop(crop_box)
+            image_crops.append(image_crop)
+            
+            if len(image_crops) == max_crops + 1:
+                break
         
     images_tensors = image_processor(images=image_crops, return_tensors='pt')['pixel_values'] # shape: [len(image_crops), 3, 384, 384]
     bboxes_tensor = torch.tensor(bboxes_list) # shape: [len(image_crops), 4]
