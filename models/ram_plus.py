@@ -39,10 +39,15 @@ class RAMPlus:
         return all_tags
 
     def forward(self, image_file):
-        image = Image.open(image_file)
+        if not isinstance(image_file, Image.Image):
+            image = Image.open(image_file)
+        else:
+            image = image_file
+            
         with torch.no_grad():
             image = self.ram_transform(image).unsqueeze(0).cuda(self.device)
             res = inference(image, self.ram_model)
+            
         tags = res[0].replace(' |', ',')
         tags = tags.lower()
         tags = tags.strip()
