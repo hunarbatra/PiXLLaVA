@@ -26,6 +26,18 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
         --conv-mode $CONV_MODE &
 done
 
+# for IDX in $(seq 0 $((CHUNKS-1))); do
+#     CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python -m pixl.eval.model_vqa_loader \
+#         --model-path $MODELDIR \
+#         --question-file ./playground/data/eval/seed_bench/llava-seed-bench_roi-location.jsonl \
+#         --image-folder ./playground/data/eval/seed_bench \
+#         --answers-file ./playground/data/eval/seed_bench/answers/$CKPT/${CHUNKS}_${IDX}.jsonl \
+#         --num-chunks $CHUNKS \
+#         --chunk-idx $IDX \
+#         --temperature 0 \
+#         --conv-mode $CONV_MODE &
+# done
+
 wait
 
 output_file=./playground/data/eval/seed_bench/answers/$CKPT/merge.jsonl
