@@ -11,6 +11,9 @@ from peft import PeftModel
 
 from pixl.model import PIXLPhiForCausalLM, PIXLGemmaForCausalLM, PIXLPhi3ForCausalLM, PIXLlamaForCausalLM, PIXLPhi15ForCausalLM
 
+from pixl.model.builder import load_pretrained_model
+from pixl.mm_utils import get_model_name_from_path
+
 load_dotenv()
 
 
@@ -68,6 +71,23 @@ def load_model(
         raise ValueError(f'Unknown model path: {model_path}')
     
     return pretrain_model
+
+def print_model_params_grads(
+    model_path: str = './ckpts/checkpoints-siglip/phi_35/PiXLLaVAPhi35-3b-merged',
+    device: str = "cuda",
+):
+    kwargs = {"device_map": device, "torch_dtype": torch.float16}
+    
+    model_path = os.path.expanduser(model_path)
+    model_name = get_model_name_from_path(model_path)
+    
+    print(f'loading from {model_path}')
+    print(f'model name: {model_name}')
+    
+    tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, model_path, model_name, flash_attn=True)
+    
+    for name, param in model.named_parameters():
+        print(f'Name: {name}, Requires Grad: {param.requires_grad}')
 
 def merge_weights_lora(
     model_path: str = './ckpts/checkpoints-siglip/phi_35/PiXLLaVAPhi35-3b',
@@ -226,5 +246,6 @@ if __name__ == "__main__":
         "merge_lora": merge_weights_lora,
         "upload": upload_weights,
         "merge": merge_weights,
+        "debug": print_model_params_grads,
     })
     
