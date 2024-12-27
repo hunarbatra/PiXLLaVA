@@ -1,6 +1,7 @@
 import argparse
 import torch
 import os
+import ast
 import json
 import pandas as pd
 from tqdm import tqdm
@@ -10,7 +11,7 @@ from pixl.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_ST
 from pixl.conversation import conv_templates, SeparatorStyle
 from pixl.model.builder import load_pretrained_model
 from pixl.utils import disable_torch_init
-from pixl.mm_utils import tokenizer_image_token, process_images, load_image_from_base64, get_model_name_from_path
+from pixl.mm_utils import tokenizer_image_token, process_images, load_image_from_base64, get_model_name_from_path, KeywordsStoppingCriteria
 
 from PIL import Image
 import math
@@ -54,9 +55,10 @@ def get_options(row, options):
 def eval_model(args):
     # Model
     disable_torch_init()
+    use_pixl = not args.no_pixl
     model_path = os.path.expanduser(args.model_path)
     model_name = get_model_name_from_path(model_path)
-    tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name)
+    tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name, flash_attn=True)
 
     questions = pd.read_table(os.path.expanduser(args.question_file))
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
@@ -81,12 +83,29 @@ def eval_model(args):
             idx = row['index']
             question = row['question']
             hint = row['hint']
-            image = load_image_from_base64(row['image'])
+            image = row['image']
+            img_path = os.path.join(args.image_folder, image)
+            
+            ram_tags = row['ram_tags'] if 'ram_tags' in row else ''
+            select_tags = row['select_tags'] if 'select_tags' in row else ''
+            bboxes = row['bboxes'] if 'bboxes' in row else []
+            bboxes = ast.literal_eval(bboxes)
+            
+            image_tensor, bboxes_list = process_images(img_path, bboxes, image_processor, model.config, use_pixl=use_pixl)
+            images = image_tensor.unsqueeze(0).half().cuda()[0]
+            bboxes_list = bboxes_list.unsqueeze(0).half().cuda()[0]
+            
+            images_list = [images]
+            bbox_list = [bboxes_list]
+            
             if not is_none(hint):
                 question = hint + '\n' + question
+                
             for option_char, option in zip(all_options[:len(options)], options):
                 question = question + '\n' + option_char + '. ' + option
+                
             qs = cur_prompt = question
+            
             if model.config.mm_use_im_start_end:
                 qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs
             else:
@@ -104,16 +123,21 @@ def eval_model(args):
             prompt = conv.get_prompt()
 
             input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+            attention_mask = input_ids != tokenizer.pad_token_id  # Generate attention mask for text
 
-            image_tensor = process_images([image], image_processor, model.config)[0]
+            # image_tensor = process_images([image], image_processor, model.config)[0]
             # image_tensor = image_processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
 
-            stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+            # stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+            stop_str = conv.sep2 if conv.sep2 else conv.sep
+            keywords = [stop_str]
 
             with torch.inference_mode():
                 output_ids = model.generate(
                     input_ids,
-                    images=image_tensor.unsqueeze(0).half().cuda(),
+                    attention_mask=attention_mask,
+                    images=images_list,
+                    bbox_coords=bbox_list,
                     do_sample=True if args.temperature > 0 else False,
                     temperature=args.temperature,
                     top_p=args.top_p,
@@ -122,7 +146,8 @@ def eval_model(args):
                     eos_token_id=tokenizer.eos_token_id,  # End of sequence token
                     pad_token_id=tokenizer.eos_token_id,  # Pad token
                     max_new_tokens=1024,
-                    use_cache=True
+                    use_cache=True,
+                    stopping_criteria=[KeywordsStoppingCriteria(keywords, tokenizer, input_ids)]
                 )
 
             input_token_len = input_ids.shape[1]
@@ -150,6 +175,7 @@ def eval_model(args):
             # rotate options
             options = options[1:] + options[:1]
             cur_option_char = cur_option_char[1:] + cur_option_char[:1]
+            
     ans_file.close()
 
 if __name__ == "__main__":
@@ -168,6 +194,7 @@ if __name__ == "__main__":
     parser.add_argument("--all-rounds", action="store_true")
     parser.add_argument("--single-pred-prompt", action="store_true")
     parser.add_argument("--lang", type=str, default="en")
+    parser.add_argument("--no-pixl", action="store_true")
     args = parser.parse_args()
 
     eval_model(args)
