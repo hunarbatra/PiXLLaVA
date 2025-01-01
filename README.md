@@ -1,5 +1,7 @@
 # PiXLLaVA: Interleaved object-centric Vision-Language Alignment for improving MLLMs
 
+[![wakatime](https://wakatime.com/badge/github/hunarbatra/PiXLLaVA.svg)](https://wakatime.com/badge/github/hunarbatra/PiXLLaVA)
+
 ## Add .env file:
 ```
 WANDB_API_KEY=YOUR_WANDB_API_KEY
