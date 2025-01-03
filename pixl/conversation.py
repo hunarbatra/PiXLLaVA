@@ -444,10 +444,13 @@ default_conversation = conv_phi_v0
 conv_templates = {
     "default": conv_phi_v0,
     "v0": conv_phi_v0,
+    
     "phi": conv_phi_v0,
     "phi-1.5": conv_phi_v0,
+    
     "phi-2": conv_phi_v0,
     "phi_2": conv_phi_v0,
+    "phi2": conv_phi_v0,
     
     "gemma_1": conv_gemma_1,
     "gemma": conv_gemma_2,
@@ -460,8 +463,10 @@ conv_templates = {
     
     "vicuna": conv_vicuna_v1,
     "vicuna_v1": conv_vicuna_v1,
+    
     "llama_2": conv_llama_2,
     "llama2": conv_llama_2,
+    
     "mistral_instruct": conv_mistral_instruct,
     "chatml_direct": conv_chatml_direct,
     "mistral": conv_chatml_direct,
