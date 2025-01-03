@@ -91,7 +91,7 @@ def download_paligemma2_3b():
     
 def download_llavaphi3():
     repo_id = "MBZUAI/LLaVA-Phi-3-mini-4k-instruct"
-    local_dir = "ckpts/" + repo_id.split("/")[-1]
+    local_dir = "ckpts/checkpoints-siglip/phi_35/LLaVA-Phi3"
     
     download_model_files(repo_id, local_dir)
     
