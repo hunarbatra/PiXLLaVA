@@ -30,6 +30,7 @@ def get_chunk(lst, n, k):
 def eval_model(args):
     # Model
     disable_torch_init()
+    use_pixl = not args.no_pixl
     model_path = os.path.expanduser(args.model_path)
     model_name = get_model_name_from_path(model_path)
     tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name, flash_attn=True)
@@ -53,7 +54,7 @@ def eval_model(args):
         if 'image' in line:
             image_file = line["image"]
             img_path = os.path.join(args.image_folder, image_file)
-            image_tensor, bboxes_list = process_images(img_path, bboxes, image_processor, model.config)
+            image_tensor, bboxes_list = process_images(img_path, bboxes, image_processor, model.config, use_pixl=use_pixl)
             
             images = image_tensor.unsqueeze(0).half().cuda()[0]
             bboxes_list = bboxes_list.unsqueeze(0).half().cuda()[0]
@@ -168,6 +169,7 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--answer-prompter", action="store_true")
     parser.add_argument("--single-pred-prompt", action="store_true")
+    parser.add_argument("--no-pixl", action="store_true", default=False)
     args = parser.parse_args()
 
     eval_model(args)
