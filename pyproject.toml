@@ -32,6 +32,7 @@ dependencies = [
     "opencv-python",
     "backoff", "openai", "anthropic",
     "safetensors",
+    "openpyxl"
 ]
 
 [project.urls]
