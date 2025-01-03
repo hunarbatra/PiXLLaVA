@@ -1,3 +1,5 @@
+[![wakatime](https://wakatime.com/badge/github/hunarbatra/PiXLLaVA.svg)](https://wakatime.com/badge/github/hunarbatra/PiXLLaVA)
+
 # PiXLLaVA: Interleaved object-centric Vision-Language Alignment for improving MLLMs
 
 ## Add .env file:
