@@ -89,22 +89,29 @@ class PIXLMetaModel:
     
     def meanPooling2D(self, x):
         batch_size, num_positions, hidden_size = x.size()
-        spatial_dim = int(num_positions ** 0.5) # 27x27 for 729 -> 13x13 for 169
-        
-        # reshape to [batch_size, 13, 13, 2560 (hidden_size)]
+        spatial_dim = int(num_positions ** 0.5)  # e.g. 729 → 27, 196 → 13
+
+        # Reshape to [batch_size, H, W, hidden_size]
         x_reshaped = x.view(batch_size, spatial_dim, spatial_dim, hidden_size)
-        
-        # apply 2D pooling with kernel_size=2 and stride=2 to halve the spatial dimensions
-        # mean pooling will reduce [27, 27] to [13, 13]
+
+        # If spatial dimension is odd (e.g. 27), pad to make it even (e.g. 28)
+        if spatial_dim % 2 == 1:
+            x_reshaped = F.pad(x_reshaped, (0, 0, 0, 1, 0, 1))  # Pad right and bottom by 1
+            spatial_dim += 1  # Updated to match new padded shape
+
+        # Permute to NCHW format for pooling: [batch_size, hidden_size, H, W]
+        x_reshaped = x_reshaped.permute(0, 3, 1, 2)
+
+        # Apply 2D mean pooling (kernel=2, stride=2) to downsample
         pooling = nn.AvgPool2d(kernel_size=2, stride=2)
-        x_pooled = pooling(x_reshaped.permute(0, 3, 1, 2)) # permute to [batch_size, hidden_size, 13, 13] to get [n, channels, h, w] for 2D Avg Pooling
-        
-        # reshape back to [batch_size, 169, hidden_size] after pooling
-        new_spatial_dim = x_pooled.size(2)
-        x_pooled = x_pooled.permute(0, 2, 3, 1).view(batch_size, new_spatial_dim * new_spatial_dim, hidden_size)
-        
-        return x_pooled
-    
+        x_pooled = pooling(x_reshaped)  # Shape: [batch_size, hidden_size, H/2, W/2] (e.g. [B, 2560, 14, 14])
+
+        # Permute back to [B, H*W, hidden_size]
+        h_out, w_out = x_pooled.shape[2], x_pooled.shape[3]  # Should be 14x14
+        x_pooled = x_pooled.permute(0, 2, 3, 1).contiguous().view(batch_size, h_out * w_out, hidden_size)
+
+        return x_pooled  # [batch_size, 196, hidden_size]
+
     def attentionMeanPooling2D(self, x):
         # Adapted from Molmo's implementation: https://github.com/vllm-project/vllm/blob/main/vllm/model_executor/models/molmo.py
         
@@ -168,9 +175,11 @@ class PIXLMetaForCausalLM(ABC):
         
         # Apply pooling operation to projected features to get 27x27 patches down to 196 patches i.e 1/4 pooling strategy to halve the spatial dimensions (width and height)
         flat_pooled_features = self.get_model().attentionMeanPooling2D(flat_image_features) # shape of each element in the list: [total_num_images, 196, 1152] down from [total_num_images, 729, 1152]
+        # flat_pooled_features = flat_image_features # NO POOLING
 
+        # we first pool, and then project to train the projector to adapt to that img->text mapping 
         # Project image features to LLM hidden size (d_llm)
-        flat_projected_features = self.get_model().mm_projector(flat_pooled_features) # shape of each element in the list: [total_num_images, 729, 2560]
+        flat_projected_features = self.get_model().mm_projector(flat_pooled_features) # shape of each element in the list: [total_num_images, 196, 2560]
         
         # Split projected pooled features back into per-sample lists
         projected_features_per_sample = []
@@ -186,10 +195,11 @@ class PIXLMetaForCausalLM(ABC):
                 # apply bbox embedding
                 bbox_embeddings = self.get_model().bbox_embedder(bbox_coords[1:].to(proj_feats.device)) # shape: [num_crops, 2560] - project d_bbox -> d_llm
                 bbox_embeddings = bbox_embeddings.unsqueeze(1) # shape: [num_crops, 1, 2560]
-                bbox_embeddings = bbox_embeddings.expand(-1, proj_feats.shape[1], -1) # shape: [num_crops, len(pooled_feats), 2560] i.e [num_crops, 169, 2560]
-                proj_feats[1:] += bbox_embeddings # proj_feats shape is: [num_images, 169, 2560], add bbox embeddings projected to d_llm to the projected object crop features
+                bbox_embeddings = bbox_embeddings.expand(-1, proj_feats.shape[1], -1) # shape: [num_crops, len(pooled_feats), 2560] i.e [num_crops, 196, 2560]
+                # proj_feats[1:] += bbox_embeddings # proj_feats shape is: [num_images, 196, 2560], add bbox embeddings projected to d_llm to the projected object crop features
+                proj_feats[1:] = torch.cat([bbox_embeddings, proj_feats[1:]], dim=1) # concat along the sequence dimension to get [num_crops, 196+1, 2560]
                 
-        return projected_features_per_sample # list of tensors per sample, each element in the list is a tensor of shape [num_images, 169, 2560] i.e stacked tensors per sample
+        return projected_features_per_sample # list of tensors per sample, each element in the list is a tensor of shape [num_images, 196, 2560] i.e stacked tensors per sample
 
     def prepare_inputs_labels_for_multimodal(
             self, input_ids, attention_mask, past_key_values, labels, images, bbox_coords_per_sample
@@ -212,7 +222,7 @@ class PIXLMetaForCausalLM(ABC):
                 # multimodal LLM, but the current sample is not multimodal
                 # FIXME: this is a hacky fix, for deepspeed zero3 to work
                 half_len = cur_input_ids.shape[0] // 2
-                cur_image_features = image_features[cur_image_idx] # [num_images, 169, 2560]
+                cur_image_features = image_features[cur_image_idx] # [num_images, 196, 2560]
                 num_images = cur_image_features.shape[0]
                 cur_input_embeds_1 = self.get_model().embed_tokens(cur_input_ids[:half_len])
                 cur_input_embeds_2 = self.get_model().embed_tokens(cur_input_ids[half_len:])
