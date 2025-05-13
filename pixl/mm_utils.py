@@ -10,8 +10,6 @@ from transformers import StoppingCriteria
 from pixl.constants import IMAGE_TOKEN_INDEX
 from PIL import Image
 
-from models.roi_selection import ROISelection
-
 
 def load_image_from_base64(image):
     return Image.open(BytesIO(base64.b64decode(image)))
