@@ -193,11 +193,15 @@ class PIXLMetaForCausalLM(ABC):
         for i, (proj_feats, bbox_coords) in enumerate(zip(projected_features_per_sample, bbox_coords_per_sample)):
             if bbox_coords.shape[0] > 1: # there are object crops
                 # apply bbox embedding
-                bbox_embeddings = self.get_model().bbox_embedder(bbox_coords[1:].to(proj_feats.device)) # shape: [num_crops, 2560] - project d_bbox -> d_llm
+                bbox_embeddings = self.get_model().bbox_embedder(bbox_coords.to(proj_feats.device)) # shape: [num_crops, 2560] - project d_bbox -> d_llm
                 bbox_embeddings = bbox_embeddings.unsqueeze(1) # shape: [num_crops, 1, 2560]
-                bbox_embeddings = bbox_embeddings.expand(-1, proj_feats.shape[1], -1) # shape: [num_crops, len(pooled_feats), 2560] i.e [num_crops, 196, 2560]
+                # bbox_embeddings = bbox_embeddings.expand(-1, proj_feats.shape[1], -1) # shape: [num_crops, len(pooled_feats), 2560] i.e [num_crops, 196, 2560]
                 # proj_feats[1:] += bbox_embeddings # proj_feats shape is: [num_images, 196, 2560], add bbox embeddings projected to d_llm to the projected object crop features
-                proj_feats[1:] = torch.cat([bbox_embeddings, proj_feats[1:]], dim=1) # concat along the sequence dimension to get [num_crops, 196+1, 2560]
+                # expand proj_feats[1:] dim 1 
+                # proj_feats[1:] = torch.cat([bbox_embeddings, proj_feats[1:]], dim=1) # concat along the sequence dimension to get [num_crops, 196+1, 2560]
+                proj_feats_crops = torch.cat([bbox_embeddings, proj_feats], dim=1)  # [num_crops, 197, 2560]
+                projected_features_per_sample[i] = proj_feats_crops
+
                 
         return projected_features_per_sample # list of tensors per sample, each element in the list is a tensor of shape [num_images, 196, 2560] i.e stacked tensors per sample
 
