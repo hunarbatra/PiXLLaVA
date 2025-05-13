@@ -219,7 +219,7 @@ def merge_weights(
         upload_weights(merged_path)
         
 def upload_weights(
-    merged_path: str = './ckpts/checkpoints-siglip/phi_35/PiXLLaVAPhi35-3b-merged'
+    merged_path: str = './ckpts/checkpoints-siglip/phi_35/PiXLLaVAPhi35-3b-merged-210225'
 ):  
     print(f'Uploading merged model to Hugging Face Hub...')
     
