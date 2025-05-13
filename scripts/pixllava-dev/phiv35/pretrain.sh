@@ -20,7 +20,7 @@ cp $vision_encoder/preprocessor_config.json $outputdir
 # num_gpus = 8
 # total global batch size = 32 * 1 * 8 = 256
 
-deepspeed --master_port 29600 --include localhost:0,2 pixl/train/train.py \
+deepspeed --master_port 29600 pixl/train/train.py \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $model_dir \
     --version plain \
@@ -35,7 +35,7 @@ deepspeed --master_port 29600 --include localhost:0,2 pixl/train/train.py \
     --bf16 True \
     --output_dir $outputdir \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 8 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
