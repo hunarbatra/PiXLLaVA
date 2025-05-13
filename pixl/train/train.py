@@ -63,7 +63,9 @@ class ModelArguments:
 
     mm_use_im_start_end: bool = field(default=False)
     mm_use_im_patch_token: bool = field(default=True)
-
+    
+    # pool_mode: str = field(default="attention")
+    max_crops: int = field(default=3)
 
 @dataclass
 class DataArguments:
@@ -1217,17 +1219,23 @@ class LazySupervisedDataset(Dataset):
                 
                 if bboxes:
                     w, h, _ = image.shape
-                    max_crops = 5
+                    max_crops = self.model_args.max_crops
+                    print(f'Using max_crops: {max_crops}')
                     
                     for box in bboxes:
                         if len(box) != 4:
                             continue
                         x1, y1, x2, y2 = box
-                        x_center = (x1 + x2) / 2 / w
-                        y_center = (y1 + y2) / 2 / h
-                        width = (x2 - x1) / w
-                        height = (y2 - y1) / h
-                        bbox = [x_center, y_center, width, height]
+                        # x_center = (x1 + x2) / 2 / w
+                        # y_center = (y1 + y2) / 2 / h
+                        # width = (x2 - x1) / w
+                        # height = (y2 - y1) / h
+                        # bbox = [x_center, y_center, width, height]
+                        x1_norm = round(x1 / w, 2)
+                        y1_norm = round(y1 / h, 2)
+                        x2_norm = round(x2 / w, 2)
+                        y2_norm = round(y2 / h, 2)
+                        bbox = [x1_norm, y1_norm, x2_norm, y2_norm]
                         bboxes_list.append(bbox)
                         
                         # crop the image
@@ -1274,6 +1282,7 @@ class LazySupervisedDataset(Dataset):
         
         data_dict['id'] = self.list_data_dict[i]['id']
         data_dict['is_multimodal'] = ('image' in self.list_data_dict[i] and self.list_data_dict[i]['image'] is not None)
+        # data_dict['pool_mode'] = self.model_args.pool_mode
             
         return data_dict
 
@@ -1317,9 +1326,11 @@ class DataCollatorForSupervisedDataset(object):
         images = [instance['image'] for instance in instances]  # List of tensors of shape [num_images_per_sample, 3, H, W]
         bboxes = [instance['bboxes'] for instance in instances]  # List of tensors of shape [num_bboxes_per_sample, 4]
         is_multimodal = [instance['is_multimodal'] for instance in instances]
+        # pool_mode = [instance['pool_mode'] for instance in instances]
         
         batch['images'] = images
         batch['bbox_coords'] = bboxes
+        # batch['pool_mode'] = pool_mode
         
         return batch
 
@@ -1354,8 +1365,6 @@ def init_detr_model():
 
 def train():
     global local_rank
-    
-    # initialise DETR model and processor before the Main Model / DeepSpeed initialization to avoid DeepSpeed from wrapping the model iniitalization, which leads to size mismatch errors
 
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments))
