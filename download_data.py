@@ -276,15 +276,17 @@ def download_finetune_dataset(json_only=False, download_all=True, download_datas
 
     # URLs of the files to download
     # json_url = 'https://huggingface.co/datasets/hunarbatra/llava-finetune-665k-object-coords/resolve/main/llava_v1_5_mix665k_detr.json'
-    json_url = 'https://huggingface.co/datasets/hunarbatra/PiXLLaVA-finetune-665k-roi/resolve/main/llava_v1_5_mix665k_detr_roi.json'
+    # json_url = 'https://huggingface.co/datasets/hunarbatra/PiXLLaVA-finetune-665k-roi/resolve/main/llava_v1_5_mix665k_detr_roi.json'
+    json_url = 'https://huggingface.co/datasets/hunarbatra/PiXLLaVA-finetune-665k-roi/resolve/main/llava_v1_5_mix665k_roi.json'
     json_file_path = 'data/llava-finetune/llava_v1_5_mix665k_roi.json'
 
-    headers = {'Authorization': f'Bearer {os.getenv("HF_TOKEN")}'}
+    # headers = {'Authorization': f'Bearer {os.getenv("HF_TOKEN")}'}
 
     def download_json():
         print('Downloading fine-tuning JSON file...')
         if not os.path.exists(json_file_path):
-            download_file(json_url, json_file_path, headers=headers)
+            # download_file(json_url, json_file_path, headers=headers)
+            download_file(json_url, json_file_path)
             print('JSON file downloaded to:', json_file_path)
         else:
             print(f'JSON file already exists at {json_file_path}, skipping download.')
